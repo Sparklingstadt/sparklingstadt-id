@@ -272,6 +272,17 @@ test("authorize rejects prompt=none together with login", async ({ page }) => {
   expect(location.searchParams.get("code")).toBeNull();
 });
 
+test("authorize rejects prompt=none together with another value", async ({ page }) => {
+  await signedInUser(page);
+  const state = `state-${randomUUID()}`;
+  const location = expectClientRedirect(
+    await page.request.get(authorizePath({ prompt: "none consent", state }), { maxRedirects: 0 }),
+    state,
+  );
+  expect(location.searchParams.get("error")).toBe("invalid_request");
+  expect(location.searchParams.get("code")).toBeNull();
+});
+
 test("authorize with prompt=none returns login_required for a revoked session", async ({ page, browser }) => {
   const email = await signedInUser(page);
   const headers = { "x-forwarded-for": `e2e-${randomUUID()}` };

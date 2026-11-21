@@ -3,12 +3,13 @@ import test from "node:test";
 import { authorizePathWithoutPrompt, parsePrompt } from "../../lib/id/prompt.ts";
 
 test("parsePrompt reads login and none from the prompt values", () => {
-  assert.deepEqual(parsePrompt(null), { login: false, none: false });
-  assert.deepEqual(parsePrompt(""), { login: false, none: false });
-  assert.deepEqual(parsePrompt("none"), { login: false, none: true });
-  assert.deepEqual(parsePrompt("login consent"), { login: true, none: false });
-  assert.deepEqual(parsePrompt("none login"), { login: true, none: true });
-  assert.deepEqual(parsePrompt("loginx nonex"), { login: false, none: false });
+  assert.deepEqual(parsePrompt(null), { login: false, none: false, other: false });
+  assert.deepEqual(parsePrompt(""), { login: false, none: false, other: false });
+  assert.deepEqual(parsePrompt("none"), { login: false, none: true, other: false });
+  assert.deepEqual(parsePrompt("login consent"), { login: true, none: false, other: true });
+  assert.deepEqual(parsePrompt("none login"), { login: true, none: true, other: true });
+  assert.deepEqual(parsePrompt("none consent"), { login: false, none: true, other: true });
+  assert.deepEqual(parsePrompt("loginx nonex"), { login: false, none: false, other: true });
 });
 
 test("authorizePathWithoutPrompt keeps every other parameter", () => {

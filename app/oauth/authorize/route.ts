@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
   // 3. prompt=none never shows a screen: answer with an error instead of sending the user to log in or confirm.
   const prompt = parsePrompt(params.get("prompt"));
-  if (prompt.none && prompt.login) return authorizeError(redirectUri, "invalid_request", state);
+  if (prompt.none && prompt.other) return authorizeError(redirectUri, "invalid_request", state);
 
   // 4. Not signed in: log in, then come back to this exact URL. With prompt=login, log in even when signed in, then
   //    come back without the prompt, so that the new session issues the code.

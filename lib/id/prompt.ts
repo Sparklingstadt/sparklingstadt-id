@@ -1,10 +1,14 @@
 /**
  * The `prompt` values the authorize endpoint acts on (OIDC Core 3.1.2.1): `login` asks to sign in again even with a
- * session, `none` forbids any screen. Other values (such as `consent`) are ignored.
+ * session, `none` forbids any screen. `other` is true for any other value; `none` together with one is an error.
  */
-export function parsePrompt(prompt: string | null): { login: boolean; none: boolean } {
-  const values = (prompt ?? "").split(" ");
-  return { login: values.includes("login"), none: values.includes("none") };
+export function parsePrompt(prompt: string | null): { login: boolean; none: boolean; other: boolean } {
+  const values = (prompt ?? "").split(" ").filter((value) => value !== "");
+  return {
+    login: values.includes("login"),
+    none: values.includes("none"),
+    other: values.some((value) => value !== "none"),
+  };
 }
 
 /**
