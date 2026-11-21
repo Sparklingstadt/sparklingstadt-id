@@ -1,0 +1,101 @@
+# Sparklingstadt ID
+
+Sparklingstadt のサービス共通のログイン窓口です。OpenID Connect（認可コードフロー + PKCE）のプロバイダーとして動き、ユーザーの登録・メール確認・ログイン・パスワード再設定・マイページを持ちます。ID サーバーでログインすれば、登録したどのクライアント（サービス）にも、パスワードを聞かずに入れます（SSO）。
+
+- issuer：`https://id.sparklingstadt.com`（末尾スラッシュなし）
+- Next.js 16 / Prisma 7 / Postgres（Neon）/ Vercel
+- 言語：日本語（既定）・簡体字・繁体字。トップ（`/`）はマイページ（`/account`）へ送ります。
+
+## エンドポイント
+
+| パス | 役割 |
+| --- | --- |
+| `GET /.well-known/openid-configuration` | discovery |
+| `GET /oauth/authorize` | 認可。`prompt=login`・`prompt=none` に対応。ログイン中ならパスワードなしでコードを返す |
+| `POST /oauth/token` | コードを ID トークン・アクセストークンに換える（`client_secret_basic` / `client_secret_post`、PKCE は S256 のみ） |
+| `GET /oauth/jwks` | 署名の公開鍵（JWKS） |
+| `GET /oauth/userinfo` | アクセストークンで現在のプロフィール（`sub`・`email`・`email_verified`・`name`）を返す |
+| `GET /oauth/logout` | RP-Initiated Logout 1.0。`post_logout_redirect_uri` が登録と完全一致のときだけ戻す |
+
+画面は `/signup`・`/login`・`/account`・`/verify`・`/forgot`・`/reset`・`/signed-out`（日本語は接頭辞なし、`/zh-cn/…`・`/zh-tw/…`）です。ID トークンは ES256 で署名し、クレームは `iss`・`sub`・`aud`・`iat`・`exp`・`auth_time`・`nonce`・`email`・`email_verified`・`name` です。`role` は返しません。
+
+## 環境変数
+
+| 名前 | 内容 |
+| --- | --- |
+| `ID_ISSUER` | issuer の origin（例 `https://id.sparklingstadt.com`） |
+| `DATABASE_URL` | Postgres の接続文字列 |
+| `OIDC_SIGNING_KEY` | ID トークンの署名鍵（ES256 の秘密 JWK） |
+| `OIDC_PREVIOUS_PUBLIC_KEYS` | 任意。鍵を替えたときの古い公開鍵の JSON 配列。JWKS に残す |
+| `OIDC_CLIENTS` | 登録するクライアントの JSON 配列 |
+| `RESEND_API_KEY` | メールを送る Resend の API キー |
+| `MAIL_FROM` | メールの差出人（例 `Sparklingstadt ID <no-reply@sparklingstadt.com>`） |
+| `MAIL_LOG` | 任意。E2E 用。メールを送らず、このファイルに JSON Lines で書く |
+
+雛形は `.env.example` にあります。
+
+## クライアントの登録
+
+1. シークレットとクライアントの JSON を作ります。
+
+   ```sh
+   pnpm run oidc:client my-service
+   ```
+
+   `secret=…`（クライアントに渡す平文のシークレット）と、`secretHash` を含む JSON が出ます。シークレットは保存せず、ハッシュだけをサーバーに置きます。
+
+2. その JSON に `redirectUris` と `postLogoutRedirectUris` を足し、`OIDC_CLIENTS`（配列）に入れます。
+
+   ```json
+   [
+     {
+       "id": "my-service",
+       "name": "my-service",
+       "secretHash": "<oidc:client が出したハッシュ>",
+       "redirectUris": ["https://my-service.example.com/api/auth/callback/sparklingstadt"],
+       "postLogoutRedirectUris": ["https://my-service.example.com/signed-out"]
+     }
+   ]
+   ```
+
+   `redirect_uri` と `post_logout_redirect_uri` は、登録した値と完全に一致したときだけ使えます。
+
+## 署名鍵
+
+作り方：
+
+```sh
+pnpm run oidc:keygen
+```
+
+出力の 1 行（JWK）を `OIDC_SIGNING_KEY` に入れます。
+
+交換するとき：新しい鍵を作って `OIDC_SIGNING_KEY` を替える前に、古い鍵の**公開鍵**（`d` を除いた JWK）を `OIDC_PREVIOUS_PUBLIC_KEYS`（JSON 配列）に足します。すると発行済みのトークンの検証が続き、JWKS には新旧の鍵が並びます。古いトークンの寿命（ID トークン・アクセストークンは 5 分）が過ぎたら、古い公開鍵を外します。
+
+## 本番の設定
+
+1. Vercel に `sparklingstadt-id` のプロジェクトと Neon の DB を作り、`id.sparklingstadt.com` をつなぎます（DNS）。
+2. Resend で `sparklingstadt.com` を確認し、`RESEND_API_KEY` と `MAIL_FROM` を入れます。
+3. 鍵とクライアントのシークレットを作り、`OIDC_CLIENTS` にクライアントを入れて、環境変数（上の表）を Vercel に設定します。
+4. DB に表を作ります。
+
+   ```sh
+   pnpm run db:deploy
+   ```
+
+5. デプロイします。自分のアカウントを登録し、サービスを順に移します。
+
+## 開発
+
+```sh
+pnpm install
+docker compose up -d --wait          # Postgres 17（127.0.0.1:55432）
+pnpm run db:deploy                   # DATABASE_URL を指さない場合は compose の DB を使う
+pnpm run dev
+```
+
+| コマンド | 内容 |
+| --- | --- |
+| `pnpm run test:unit` | 単体テスト |
+| `pnpm run test:e2e` | Playwright の E2E（`pnpm run build` のあと。サーバー・クライアント・署名鍵は自動で用意） |
+| `pnpm run test:regression` | lint・単体・ビルド・E2E をまとめて実行（CI と同じ） |

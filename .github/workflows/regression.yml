@@ -1,0 +1,49 @@
+name: Regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sparklingstadt_id
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sparklingstadt_id"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55432/sparklingstadt_id
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec prisma migrate deploy
+      # E2E のクライアントと署名鍵は playwright.config.ts が自分で作る。秘密は要らない。
+      - run: pnpm run test:regression
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: regression-failure
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
