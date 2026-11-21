@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // The root has no page of its own: the account page is the front door.
+    return [{ source: "/", destination: "/account", permanent: false }];
+  },
   async headers() {
     return [
       {

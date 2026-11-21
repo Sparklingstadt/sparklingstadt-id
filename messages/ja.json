@@ -1,0 +1,119 @@
+{
+  "Header": {
+    "homeAriaLabel": "Sparklingstadt ID",
+    "language": "表示言語"
+  },
+  "Id": {
+    "Metadata": {
+      "signup": "新規登録",
+      "login": "ログイン",
+      "account": "マイページ",
+      "verify": "メールアドレスの確認",
+      "forgot": "パスワードの再設定",
+      "reset": "新しいパスワードの設定"
+    },
+    "Fields": {
+      "email": "メールアドレス",
+      "displayName": "表示名",
+      "password": "パスワード",
+      "passwordHint": "12〜128文字",
+      "displayNameHint": "1〜50文字"
+    },
+    "Errors": {
+      "emailInvalid": "メールアドレスを正しく入力してください。",
+      "displayNameInvalid": "表示名は1〜50文字で入力してください。",
+      "passwordLength": "パスワードは12〜128文字で入力してください。",
+      "invalidCredentials": "メールアドレスまたはパスワードが正しくありません。",
+      "throttled": "試行回数が多すぎます。しばらくしてからお試しください。",
+      "mailFailed": "メールを送れませんでした。しばらくしてからお試しください。",
+      "wrongPassword": "今のパスワードが正しくありません。",
+      "sameEmail": "今のメールアドレスと同じです。"
+    },
+    "Signup": {
+      "heading": "Sparklingstadt IDを作成",
+      "lead": "メールアドレス・表示名・パスワードを入力してください。確認メールをお送りします。",
+      "submit": "登録する",
+      "pending": "送信中…",
+      "sentHeading": "確認メールを送りました",
+      "sentBody": "{email} 宛てのメールにあるリンクを開いて、登録を完了してください。リンクの有効期限は24時間です。",
+      "haveAccount": "すでにSparklingstadt IDをお持ちの方は",
+      "loginLink": "ログイン"
+    },
+    "Login": {
+      "heading": "Sparklingstadt IDでログイン",
+      "lead": "登録したメールアドレスとパスワードを入力してください。",
+      "submit": "ログイン",
+      "pending": "ログイン中…",
+      "noAccount": "Sparklingstadt IDをお持ちでない方は",
+      "signupLink": "新規登録",
+      "forgotLink": "パスワードを忘れた場合",
+      "passwordReset": "パスワードを再設定しました。新しいパスワードでログインしてください。",
+      "confirmFirst": "メールアドレスを確認するには、そのSparklingstadt IDでログインしてください。"
+    },
+    "Account": {
+      "heading": "マイページ",
+      "displayName": "表示名",
+      "email": "メールアドレス",
+      "unverified": "メールアドレスがまだ確認されていません。確認メールのリンクを開いてください。",
+      "verifyRequired": "サービスにログインするには、メールアドレスの確認が必要です。",
+      "resend": "確認メールを再送",
+      "resent": "確認メールを再送しました。",
+      "alreadyVerified": "メールアドレスは確認済みです。",
+      "logout": "ログアウト",
+      "displayNameHeading": "表示名の変更",
+      "newDisplayName": "新しい表示名",
+      "changeDisplayName": "表示名を変更",
+      "displayNameChanged": "表示名を変更しました。",
+      "emailHeading": "メールアドレスの変更",
+      "emailLead": "新しいアドレスに確認メールを送ります。リンクを開くまでは今のアドレスのままです。",
+      "newEmail": "新しいメールアドレス",
+      "changeEmail": "メールアドレスを変更",
+      "emailChangeSent": "{email} 宛てに確認メールを送りました。メールにあるリンクを開くと変更が完了します。リンクの有効期限は24時間です。",
+      "passwordHeading": "パスワードの変更",
+      "currentPassword": "今のパスワード",
+      "newPassword": "新しいパスワード",
+      "changePassword": "パスワードを変更",
+      "passwordChanged": "パスワードを変更しました。ほかの端末ではログアウトしました。",
+      "pending": "送信中…"
+    },
+    "Verify": {
+      "verifiedHeading": "メールアドレスを確認しました",
+      "verifiedBody": "Sparklingstadt IDをご利用いただけます。",
+      "invalidHeading": "リンクが無効か期限切れです",
+      "invalidBody": "リンクはすでに使われたか、有効期限（24時間）が切れています。マイページから確認メールを再送できます。",
+      "emailTakenHeading": "このメールアドレスは使えません",
+      "emailTakenBody": "このメールアドレスは、すでに別のSparklingstadt IDで使われています。",
+      "wrongAccountHeading": "別のSparklingstadt IDあてのリンクです",
+      "wrongAccountBody": "このリンクは、いまログインしているSparklingstadt IDのものではありません。ログアウトしてから、メールを受け取ったSparklingstadt IDでログインし直してください。",
+      "toAccount": "マイページへ",
+      "emailChangedHeading": "メールアドレスを変更しました",
+      "emailChangedBody": "これからは新しいメールアドレスでログインしてください。",
+      "confirmHeading": "メールアドレスの確認",
+      "confirmBody": "下のボタンを押すと、このメールアドレスの確認が完了します。",
+      "confirmSubmit": "メールアドレスを確認する",
+      "confirmChangeHeading": "メールアドレスの変更",
+      "confirmChangeBody": "下のボタンを押すと、Sparklingstadt IDのメールアドレスがこのアドレスに変わります。",
+      "confirmChangeSubmit": "メールアドレスを変更する",
+      "pending": "送信中…"
+    },
+    "Forgot": {
+      "heading": "パスワードの再設定",
+      "lead": "登録したメールアドレスを入力してください。パスワードを再設定するためのリンクをお送りします。",
+      "submit": "再設定メールを送る",
+      "pending": "送信中…",
+      "sentHeading": "メールを送りました",
+      "sentBody": "入力されたメールアドレスがSparklingstadt IDに登録されていれば、パスワードを再設定するためのリンクをお送りしました。リンクの有効期限は1時間です。",
+      "loginLink": "ログイン画面へ戻る"
+    },
+    "Reset": {
+      "heading": "新しいパスワードの設定",
+      "lead": "新しいパスワードを入力してください。設定すると、すべての端末でログアウトします。",
+      "newPassword": "新しいパスワード",
+      "submit": "パスワードを設定",
+      "pending": "送信中…",
+      "invalidHeading": "リンクが無効か期限切れです",
+      "invalidBody": "リンクはすでに使われたか、有効期限（1時間）が切れています。もう一度、再設定メールを送ってください。",
+      "forgotLink": "再設定メールをもう一度送る"
+    }
+  }
+}

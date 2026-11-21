@@ -1,0 +1,15 @@
+# ローカルの E2E 用 Postgres。`docker compose up -d --wait` のあと `pnpm prisma migrate deploy`
+services:
+  db:
+    image: postgres:17
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_DB: sparklingstadt_id
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sparklingstadt_id"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
