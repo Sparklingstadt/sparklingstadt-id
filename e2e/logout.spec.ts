@@ -72,15 +72,23 @@ function authorizePath() {
   })}`;
 }
 
-test("logout ends the session and returns to the registered URI with state", async ({ page }) => {
+test("logout without an id_token_hint asks first, then ends the session and returns to the registered URI", async ({ page }) => {
   await signedInUser(page);
   const token = await sessionToken(page);
-  expect(await sessionRows(token)).toBe(1);
 
+  // Anyone can make a browser open this URL, so on its own it ends nothing.
   const response = await page.request.get(logoutPath(), { maxRedirects: 0 });
   expect(response.status()).toBe(302);
-  expect(response.headers()["location"]).toBe(`${POST_LOGOUT_URI}?state=s`);
+  expect(response.headers()["location"]).toBe(`/logout?${new URL(logoutPath(), ISSUER).searchParams}`);
   expect(response.headers()["cache-control"]).toBe("no-store");
+  expect(await sessionRows(token)).toBe(1);
+
+  await page.goto(logoutPath());
+  await expect(page.getByRole("heading", { name: "ログアウトしますか？" })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  expect(await sessionRows(token)).toBe(1);
+  await page.getByRole("button", { name: "ログアウトする" }).click();
+  await page.waitForURL(`${POST_LOGOUT_URI}?state=s`);
 
   expect((await page.context().cookies()).find((c) => c.name === "sid_session")).toBeUndefined();
   expect(await sessionRows(token)).toBe(0);
@@ -88,6 +96,20 @@ test("logout ends the session and returns to the registered URI with state", asy
   // The next authorize asks for a login again.
   await page.goto(authorizePath());
   await expect(page).toHaveURL(/\/login\?next=/);
+});
+
+test("the logout question can be declined, which keeps the session", async ({ page }) => {
+  await signedInUser(page);
+  const token = await sessionToken(page);
+  await page.goto(logoutPath());
+  await page.getByRole("link", { name: "ログアウトしない" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  expect(await sessionRows(token)).toBe(1);
+});
+
+test("the logout question page without a session shows the signed-out page", async ({ page }) => {
+  await page.goto("/logout");
+  expect(new URL(page.url()).pathname).toBe("/signed-out");
 });
 
 test("logout without a session still redirects", async ({ request }) => {
@@ -156,22 +178,46 @@ test("logout with only an id_token_hint returns to that client's registered URI"
   expect(await sessionRows(token)).toBe(0);
 });
 
+test("an id_token_hint of another account does not end the session without asking", async ({ page, browser }) => {
+  // Someone else's ID token: a client of theirs holds it, not a client this user signed in to.
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const otherPage = await other.newPage();
+  await signedInUser(otherPage);
+  const foreignHint = await obtainIdToken(otherPage);
+  await other.close();
+
+  await signedInUser(page);
+  const token = await sessionToken(page);
+  const response = await page.request.get(logoutPath({ client_id: null, id_token_hint: foreignHint }), {
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers()["location"]).toMatch(/^\/logout\?/);
+  expect(await sessionRows(token)).toBe(1);
+});
+
 test("logout does not redirect when the id_token_hint is forged or names another client", async ({ page }) => {
   await signedInUser(page);
   const idToken = await obtainIdToken(page);
   // client-b's own registered URI: it would be a valid target if the hint really named client-b.
   const clientB = { post_logout_redirect_uri: `${ISSUER}/client-b-signed-out` };
 
-  // A hint whose audience was changed to client-b after signing.
+  // A hint whose audience was changed to client-b after signing: it proves nothing, so the question is asked,
+  // and the answer leads to our own page.
   const [header, payload, signature] = idToken.split(".");
   const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
   const forgedPayload = Buffer.from(JSON.stringify({ ...claims, aud: "client-b" })).toString("base64url");
-  const tampered = await page.request.get(
-    logoutPath({ ...clientB, client_id: null, id_token_hint: `${header}.${forgedPayload}.${signature}` }),
-    { maxRedirects: 0 },
-  );
-  expect(tampered.status()).toBe(302);
-  expect(tampered.headers()["location"]).toBe("/signed-out");
+  await page.goto(logoutPath({ ...clientB, client_id: null, id_token_hint: `${header}.${forgedPayload}.${signature}` }));
+  await page.getByRole("button", { name: "ログアウトする" }).click();
+  await expect(page.getByRole("heading", { name: "ログアウトしました" })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/signed-out");
+
+  // The remaining requests need a session again: the genuine hint is this user's.
+  await page.goto("/login");
+  await page.getByLabel("メールアドレス", { exact: true }).fill(claims.email);
+  await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
 
   // A genuine hint for e2e-client, but the request claims to be client-b.
   const mismatch = await page.request.get(logoutPath({ ...clientB, client_id: "client-b", id_token_hint: idToken }), {

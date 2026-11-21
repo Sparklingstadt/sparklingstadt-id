@@ -2,9 +2,10 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 // Stored as `scrypt$N$r$p$salt$hash` (base64url) so parameters can change later.
 const ALGORITHM = "scrypt";
-const COST = 16384;
+// One of the equivalent settings OWASP lists for scrypt (N=2^16, r=8, p=2): 64 MiB per hash.
+const COST = 65536;
 const BLOCK_SIZE = 8;
-const PARALLELIZATION = 1;
+const PARALLELIZATION = 2;
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 
@@ -20,7 +21,8 @@ function deriveKey(
       password.normalize("NFKC"),
       salt,
       KEY_LENGTH,
-      { N: cost, r: blockSize, p: parallelization },
+      // scrypt needs about 128 * N * r bytes; Node's default limit (32 MiB) is below that.
+      { N: cost, r: blockSize, p: parallelization, maxmem: 256 * cost * blockSize },
       (error, key) => (error ? reject(error) : resolve(key)),
     );
   });
@@ -38,6 +40,17 @@ export async function hashPassword(password: string): Promise<string> {
     salt.toString("base64url"),
     key.toString("base64url"),
   ].join("$");
+}
+
+/** Whether `storedHash` was made with other parameters than the current ones (hash the password again after a login). */
+export function needsRehash(storedHash: string): boolean {
+  const [algorithm, cost, blockSize, parallelization] = storedHash.split("$");
+  return (
+    algorithm !== ALGORITHM ||
+    Number(cost) !== COST ||
+    Number(blockSize) !== BLOCK_SIZE ||
+    Number(parallelization) !== PARALLELIZATION
+  );
 }
 
 export async function verifyPassword(

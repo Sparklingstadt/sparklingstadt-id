@@ -11,6 +11,7 @@
       "verify": "確認電子郵件地址",
       "forgot": "重設密碼",
       "reset": "設定新密碼",
+      "logout": "確認登出",
       "signedOut": "已登出"
     },
     "Fields": {
@@ -88,7 +89,7 @@
       "wrongAccountBody": "此連結不屬於目前登入的 Sparklingstadt ID。請先登出，再使用收到郵件的 Sparklingstadt ID 重新登入。",
       "toAccount": "前往我的帳戶",
       "emailChangedHeading": "電子郵件地址已變更",
-      "emailChangedBody": "今後請使用新的電子郵件地址登入。",
+      "emailChangedBody": "今後請使用新的電子郵件地址登入。其他裝置已登出。",
       "confirmHeading": "確認電子郵件地址",
       "confirmBody": "按下方按鈕，即可完成此電子郵件地址的確認。",
       "confirmSubmit": "確認電子郵件地址",
@@ -115,6 +116,12 @@
       "invalidHeading": "連結無效或已過期",
       "invalidBody": "此連結已被使用或已超過有效期限（1 小時）。請重新寄送重設郵件。",
       "forgotLink": "重新寄送重設郵件"
+    },
+    "Logout": {
+      "heading": "要登出嗎？",
+      "body": "將登出 Sparklingstadt ID。",
+      "submit": "登出",
+      "cancel": "不登出"
     },
     "SignedOut": {
       "heading": "已登出",

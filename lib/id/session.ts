@@ -2,10 +2,16 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { Session, User, Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
+import { sessionCookie } from "./session-cookie.ts";
 import { hashToken, newToken } from "./tokens.ts";
 
-const COOKIE_NAME = "sid_session";
 const MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+
+/** Sets the session cookie; `maxAge` 0 removes it. */
+async function writeSessionCookie(value: string, maxAge: number): Promise<void> {
+  const { name, secure } = sessionCookie(process.env);
+  (await cookies()).set(name, value, { httpOnly: true, sameSite: "lax", path: "/", maxAge, secure });
+}
 
 /** Call only from a Server Action or Route Handler (writes a cookie). */
 export async function createSession(userId: string, sessionVersion: number): Promise<void> {
@@ -18,18 +24,12 @@ export async function createSession(userId: string, sessionVersion: number): Pro
       expiresAt: new Date(Date.now() + MAX_AGE_SECONDS * 1000),
     },
   });
-  (await cookies()).set(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE_SECONDS,
-    secure: process.env.NODE_ENV === "production" && !process.env.ID_ISSUER?.startsWith("http://"),
-  });
+  await writeSessionCookie(token, MAX_AGE_SECONDS);
 }
 
 export const getCurrentUser = cache(
   async (): Promise<{ user: User; session: Session } | null> => {
-    const token = (await cookies()).get(COOKIE_NAME)?.value;
+    const token = (await cookies()).get(sessionCookie(process.env).name)?.value;
     if (!token) return null;
     const session = await getPrisma().session.findUnique({
       where: { tokenHash: hashToken(token) },
@@ -44,12 +44,13 @@ export const getCurrentUser = cache(
 
 /** Call only from a Server Action or Route Handler (deletes a cookie). */
 export async function destroySession(): Promise<void> {
-  const store = await cookies();
-  const token = store.get(COOKIE_NAME)?.value;
+  const token = (await cookies()).get(sessionCookie(process.env).name)?.value;
   if (token) {
     await getPrisma().session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
-  store.delete(COOKIE_NAME);
+  // Written with the same attributes as when it was set: browsers ignore a `__Host-` cookie without Secure,
+  // also one that only clears it.
+  await writeSessionCookie("", 0);
 }
 
 /** Bumps `sessionVersion` and deletes every session of the user. Pass `tx` to join a transaction. */

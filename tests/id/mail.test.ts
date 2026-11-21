@@ -3,7 +3,7 @@ import test from "node:test";
 import { clientIp } from "../../lib/id/client-ip.ts";
 import { renderMail, type MailKind } from "../../lib/id/mail-templates.ts";
 
-const kinds: MailKind[] = ["verify", "changeEmail", "alreadyRegistered", "resetPassword"];
+const kinds: MailKind[] = ["verify", "changeEmail", "emailChangeRequested", "alreadyRegistered", "resetPassword"];
 const locales = ["ja", "zh-cn", "zh-tw"] as const;
 
 test("renderMail includes the link and a subject for every kind and locale", () => {

@@ -12,10 +12,22 @@ export class ValidationError extends Error {
   }
 }
 
+// One mailbox and nothing else: the address is mailed as typed and handed to clients as verified, so
+// list separators, display-name syntax and quoting are refused.
+const EMAIL_LOCAL_PART = /^[^\s@,;:<>()[\]\\"\p{Cc}]+$/u;
+const EMAIL_DOMAIN_LABEL = /^[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?$/u;
+
 export function normalizeEmail(value: string): string {
   const email = value.trim().toLowerCase();
-  const at = email.indexOf("@");
-  if (email.length > 254 || at <= 0 || at === email.length - 1 || /\s/.test(email)) {
+  const at = email.lastIndexOf("@");
+  const labels = email.slice(at + 1).split(".");
+  if (
+    email.length > 254 ||
+    at <= 0 ||
+    !EMAIL_LOCAL_PART.test(email.slice(0, at)) ||
+    labels.length < 2 ||
+    !labels.every((label) => EMAIL_DOMAIN_LABEL.test(label))
+  ) {
     throw new ValidationError("email", "emailInvalid");
   }
   return email;

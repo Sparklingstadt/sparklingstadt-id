@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { getPathname } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { hashPassword, needsRehash, verifyPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 import { sendMail, type MailKind } from "./mailer.ts";
 import { revokeSessions } from "./session.ts";
@@ -113,8 +113,10 @@ export async function emailTokenPurpose(
  * `userId` is the signed-in account: holding the link is not enough, or someone who signed up with
  * another person's address (or asked to move their account to it) could get it confirmed by that
  * person pressing the button. A token of another account is "wrongAccount" and stays unused.
+ * A change of address ends the account's other sessions; `sessionId`, the one confirming it, stays
+ * (replacing its cookie here would redraw the verify page, which then shows the used link as invalid).
  */
-export async function confirmEmailToken(token: string, userId: string): Promise<ConfirmResult> {
+export async function confirmEmailToken(token: string, userId: string, sessionId: string): Promise<ConfirmResult> {
   const invalid = { ok: false, reason: "invalid" } as const;
   if (!token || token.length > 128) return invalid;
 
@@ -140,6 +142,8 @@ export async function confirmEmailToken(token: string, userId: string): Promise<
           where: { userId: row.userId, purpose: "change_email", usedAt: null },
           data: { usedAt: now },
         });
+        // A session opened by someone else must not outlive the move to a new address.
+        await tx.session.deleteMany({ where: { userId: row.userId, id: { not: sessionId } } });
         return { ok: true, purpose: "change_email" } as const;
       }
 
@@ -167,7 +171,14 @@ export type LogInResult =
   | { ok: true; userId: string; sessionVersion: number }
   | { ok: false; reason: "invalid" | "throttled" };
 
-/** Every attempt counts against both limits; success resets the IP+address counter. */
+/** The count of login attempts for one account, from every IP address together. */
+const loginAccountKey = (email: string) => `login:mail:${email}`;
+
+/**
+ * Every attempt counts against all three limits; success resets the IP+address counter. The per-account
+ * limit stops guessing spread over many IP addresses; a password reset clears it, so whoever holds the
+ * mailbox is never locked out by someone else's attempts.
+ */
 export async function logIn(input: { email: string; password: string; ip: string }): Promise<LogInResult> {
   let email: string | undefined;
   try {
@@ -178,7 +189,8 @@ export async function logIn(input: { email: string; password: string; ip: string
   const mailKey = `login:ipmail:${input.ip}:${email ?? input.email.trim().toLowerCase().slice(0, 254)}`;
   const ipAllowed = await consumeThrottle(`login:ip:${input.ip}`, 20);
   const mailAllowed = await consumeThrottle(mailKey, 5);
-  if (!ipAllowed || !mailAllowed) return { ok: false, reason: "throttled" };
+  const accountAllowed = email ? await consumeThrottle(loginAccountKey(email), 30) : true;
+  if (!ipAllowed || !mailAllowed || !accountAllowed) return { ok: false, reason: "throttled" };
 
   const user = email
     ? await getPrisma().user.findUnique({
@@ -187,8 +199,19 @@ export async function logIn(input: { email: string; password: string; ip: string
       })
     : null;
   const valid = await verifyPassword(input.password, user?.passwordHash ?? (await dummyHash()));
+  const outdated = user ? needsRehash(user.passwordHash) : false;
+  // A hash with earlier, cheaper parameters answers sooner than the dummy: spend the difference, so that
+  // a registered address does not stand out by its response time.
+  if (outdated) await verifyPassword(input.password, await dummyHash());
   if (!user || !valid) return { ok: false, reason: "invalid" };
 
+  if (outdated) {
+    // The password is at hand: store it with the current parameters (unless it was changed meanwhile).
+    await getPrisma().user.updateMany({
+      where: { id: user.id, passwordHash: user.passwordHash },
+      data: { passwordHash: await hashPassword(input.password) },
+    });
+  }
   await resetThrottle(mailKey);
   return { ok: true, userId: user.id, sessionVersion: user.sessionVersion };
 }
@@ -234,6 +257,8 @@ async function checkCurrentPassword(userId: string, current: string): Promise<"o
 
 /**
  * Mails a `change_email` link to the NEW address; the account keeps the old one until it is opened.
+ * The CURRENT address is told about the request (not where to), with the link to reset the password:
+ * a reset cancels the request and revokes every session, should someone else have asked.
  * Same result whether or not the new address is taken (that is only told when the link is opened).
  * Throws ValidationError for a bad address, or code "sameEmail" for the current one.
  */
@@ -268,6 +293,7 @@ export async function requestEmailChange(
     locale,
     link: `${portalUrl("/verify", locale)}?token=${token}`,
   });
+  await sendMailQuietly({ to: user.email, kind: "emailChangeRequested", locale, link: portalUrl("/forgot", locale) });
   return "sent";
 }
 
@@ -353,7 +379,8 @@ export type ResetPasswordResult = { ok: true } | { ok: false; reason: "invalid" 
 /**
  * Throws ValidationError for a bad password. Uses the link once; in one transaction it sets the
  * password, marks the address verified (the mail proved the mailbox), cancels the user's other
- * pending email change / reset links and revokes every session.
+ * pending email change / reset links and revokes every session. It also clears the account's login
+ * attempt count: the mailbox owner can sign in right away, whatever others have tried.
  */
 export async function resetPassword(token: string, password: string): Promise<ResetPasswordResult> {
   const checked = checkPassword(password);
@@ -361,7 +388,7 @@ export async function resetPassword(token: string, password: string): Promise<Re
   if (!(await findResetToken(token))) return invalid;
 
   const passwordHash = await hashPassword(checked);
-  return getPrisma().$transaction(async (tx) => {
+  const result = await getPrisma().$transaction(async (tx) => {
     const now = new Date();
     const row = await findResetToken(token, tx);
     if (!row) return invalid;
@@ -381,6 +408,9 @@ export async function resetPassword(token: string, password: string): Promise<Re
       data: { usedAt: now },
     });
     await revokeSessions(row.userId, tx);
-    return { ok: true } as const;
+    return { ok: true, email: row.email } as const;
   });
+  if (!result.ok) return result;
+  await resetThrottle(loginAccountKey(result.email));
+  return { ok: true };
 }

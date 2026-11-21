@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { OidcClient } from "../../lib/id/clients.ts";
 import type { OidcConfig } from "../../lib/id/config.ts";
 import { generateSigningJwk, loadSigningKey, signJwt } from "../../lib/id/jwt.ts";
-import { resolvePostLogoutRedirect } from "../../lib/id/logout.ts";
+import { logoutHintSubject, resolvePostLogoutRedirect } from "../../lib/id/logout.ts";
 
 const ISSUER = "https://id.example";
 const A_URI = "https://a.example/signout";
@@ -84,4 +84,32 @@ test("returns null without post_logout_redirect_uri", () => {
 
 test("returns null without client_id or a valid id_token_hint", () => {
   assert.equal(resolvePostLogoutRedirect(config, new URLSearchParams({ post_logout_redirect_uri: A_URI })), null);
+});
+
+test("logoutHintSubject names the user of an expired id_token_hint signed by this server", () => {
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ id_token_hint: idToken({ sub: "u7" }) })), "u7");
+});
+
+test("logoutHintSubject is null without a hint", () => {
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ client_id: "a" })), null);
+});
+
+test("logoutHintSubject is null for a foreign signature", () => {
+  const other = loadSigningKey(generateSigningJwk());
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ id_token_hint: idToken({}, other) })), null);
+});
+
+test("logoutHintSubject is null for another issuer", () => {
+  const hint = idToken({ iss: "https://evil.example" });
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ id_token_hint: hint })), null);
+});
+
+test("logoutHintSubject is null for a token that is not an ID token of a registered client", () => {
+  // An access token is signed with the same key, but its audience is the userinfo endpoint.
+  const accessToken = idToken({ aud: `${ISSUER}/oauth/userinfo` });
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ id_token_hint: accessToken })), null);
+});
+
+test("logoutHintSubject is null when sub is not a string", () => {
+  assert.equal(logoutHintSubject(config, new URLSearchParams({ id_token_hint: idToken({ sub: 7 }) })), null);
 });
