@@ -6,7 +6,7 @@ import { authorizeError, issueAuthCode, redirectToClient } from "@/lib/id/author
 import { findClient, isRegisteredRedirect } from "@/lib/id/clients";
 import { getOidcConfig } from "@/lib/id/config";
 import { isS256Challenge } from "@/lib/id/pkce";
-import { authorizePathWithoutPrompt, wantsLogin } from "@/lib/id/prompt";
+import { authorizePathWithoutPrompt, parsePrompt } from "@/lib/id/prompt";
 import { getCurrentUser } from "@/lib/id/session";
 
 export const runtime = "nodejs";
@@ -70,27 +70,33 @@ export async function GET(request: NextRequest) {
     return authorizeError(redirectUri, "invalid_request", state);
   }
 
-  // 3. Not signed in: log in, then come back to this exact URL. With prompt=login, log in even when signed in, then
+  // 3. prompt=none never shows a screen: answer with an error instead of sending the user to log in or confirm.
+  const prompt = parsePrompt(params.get("prompt"));
+  if (prompt.none && prompt.login) return authorizeError(redirectUri, "invalid_request", state);
+
+  // 4. Not signed in: log in, then come back to this exact URL. With prompt=login, log in even when signed in, then
   //    come back without the prompt, so that the new session issues the code.
   const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value;
   const locale = hasLocale(routing.locales, cookieLocale) ? cookieLocale : routing.defaultLocale;
   const loginPath = getPathname({ href: "/login", locale });
-  if (wantsLogin(params.get("prompt"))) {
+  if (prompt.login) {
     const next = authorizePathWithoutPrompt(request.nextUrl.pathname, params);
     return redirectTo(`${loginPath}?${new URLSearchParams({ next, reauth: "1" })}`);
   }
   const current = await getCurrentUser();
   if (!current) {
+    if (prompt.none) return authorizeError(redirectUri, "login_required", state);
     const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     return redirectTo(`${loginPath}?${new URLSearchParams({ next })}`);
   }
 
-  // 4. Unconfirmed email: the account page asks to confirm it first.
+  // 5. Unconfirmed email: the account page asks to confirm it first.
   if (!current.user.emailVerifiedAt) {
+    if (prompt.none) return authorizeError(redirectUri, "interaction_required", state);
     return redirectTo(`${getPathname({ href: "/account", locale })}?verify=required`);
   }
 
-  // 5. Issue a code.
+  // 6. Issue a code.
   const code = await issueAuthCode({
     clientId: client.id,
     userId: current.user.id,

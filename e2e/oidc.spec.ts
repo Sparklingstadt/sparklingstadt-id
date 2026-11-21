@@ -1,6 +1,6 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { lastMailTo } from "./helpers/mail-log";
+import { lastMailTo, readMails } from "./helpers/mail-log";
 import { confirmEmailLink } from "./helpers/verify";
 
 const ISSUER = "http://localhost:3000";
@@ -32,6 +32,7 @@ test("serves the discovery document", async ({ request }) => {
       "client_secret_post",
     ],
     code_challenge_methods_supported: ["S256"],
+    prompt_values_supported: ["none", "login"],
     claims_supported: [
       "sub",
       "iss",
@@ -218,6 +219,84 @@ test("authorize sends a user with an unconfirmed email to the account page", asy
   await page.goto(authorizePath());
   await expect(page).toHaveURL(/\/account\?verify=required$/);
   await expect(page.getByText("サービスにログインするには、メールアドレスの確認が必要です。")).toBeVisible();
+});
+
+function expectClientRedirect(response: Awaited<ReturnType<APIRequestContext["get"]>>, state: string) {
+  expect(response.status()).toBe(302);
+  const location = new URL(response.headers()["location"]);
+  expect(`${location.origin}${location.pathname}`).toBe(REDIRECT_URI);
+  expect(location.searchParams.get("state")).toBe(state);
+  return location;
+}
+
+test("authorize with prompt=none issues a code to a signed-in user", async ({ page }) => {
+  await signedInUser(page);
+  const state = `state-${randomUUID()}`;
+  const response = await page.request.get(authorizePath({ prompt: "none", state }), { maxRedirects: 0 });
+  const location = expectClientRedirect(response, state);
+  expect(location.searchParams.get("code")).toMatch(/^[\w-]{43}$/);
+  expect(location.searchParams.get("error")).toBeNull();
+});
+
+test("authorize with prompt=none returns login_required to a signed-out user", async ({ request }) => {
+  const state = `state-${randomUUID()}`;
+  const location = expectClientRedirect(await request.get(authorizePath({ prompt: "none", state }), { maxRedirects: 0 }), state);
+  expect(location.searchParams.get("error")).toBe("login_required");
+  expect(location.searchParams.get("code")).toBeNull();
+});
+
+test("authorize with prompt=none returns interaction_required for an unconfirmed email", async ({ page }) => {
+  const email = newEmail();
+  await signUp(page, email);
+  await page.goto("/login");
+  await submitLogin(page, email);
+  await expect(page).toHaveURL(/\/account$/);
+
+  const state = `state-${randomUUID()}`;
+  const location = expectClientRedirect(
+    await page.request.get(authorizePath({ prompt: "none", state }), { maxRedirects: 0 }),
+    state,
+  );
+  expect(location.searchParams.get("error")).toBe("interaction_required");
+  expect(location.searchParams.get("code")).toBeNull();
+});
+
+test("authorize rejects prompt=none together with login", async ({ page }) => {
+  await signedInUser(page);
+  const state = `state-${randomUUID()}`;
+  const location = expectClientRedirect(
+    await page.request.get(authorizePath({ prompt: "none login", state }), { maxRedirects: 0 }),
+    state,
+  );
+  expect(location.searchParams.get("error")).toBe("invalid_request");
+  expect(location.searchParams.get("code")).toBeNull();
+});
+
+test("authorize with prompt=none returns login_required for a revoked session", async ({ page, browser }) => {
+  const email = await signedInUser(page);
+  const headers = { "x-forwarded-for": `e2e-${randomUUID()}` };
+
+  // Reset the password from another browser: that revokes every session, including this page's cookie.
+  const other = await browser.newContext({ extraHTTPHeaders: headers });
+  const otherPage = await other.newPage();
+  const before = (await readMails()).length;
+  await otherPage.goto("/forgot");
+  await otherPage.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await otherPage.getByRole("button", { name: "再設定メールを送る" }).click();
+  await expect(otherPage.getByRole("heading", { name: "メールを送りました" })).toBeVisible();
+  const { link } = await lastMailTo(email, "resetPassword", { after: before });
+  await otherPage.goto(link);
+  await otherPage.getByLabel("新しいパスワード").fill("a brand new password");
+  await otherPage.getByRole("button", { name: "パスワードを設定" }).click();
+  await expect(otherPage).toHaveURL(/\/login\?reset=done$/);
+  await other.close();
+
+  const state = `state-${randomUUID()}`;
+  const location = expectClientRedirect(
+    await page.request.get(authorizePath({ prompt: "none", state }), { maxRedirects: 0 }),
+    state,
+  );
+  expect(location.searchParams.get("error")).toBe("login_required");
 });
 
 const CLIENT_SECRET = process.env.E2E_OIDC_CLIENT_SECRET ?? "e2e-secret";

@@ -32,6 +32,7 @@ export async function GET() {
         "client_secret_post",
       ],
       code_challenge_methods_supported: ["S256"],
+      prompt_values_supported: ["none", "login"],
       claims_supported: [
         "sub",
         "iss",

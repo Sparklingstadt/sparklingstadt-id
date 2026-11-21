@@ -1,6 +1,10 @@
-/** Whether an authorization request's `prompt` asks to sign in again even with a session (OIDC Core 3.1.2.1). */
-export function wantsLogin(prompt: string | null): boolean {
-  return (prompt ?? "").split(" ").includes("login");
+/**
+ * The `prompt` values the authorize endpoint acts on (OIDC Core 3.1.2.1): `login` asks to sign in again even with a
+ * session, `none` forbids any screen. Other values (such as `consent`) are ignored.
+ */
+export function parsePrompt(prompt: string | null): { login: boolean; none: boolean } {
+  const values = (prompt ?? "").split(" ");
+  return { login: values.includes("login"), none: values.includes("none") };
 }
 
 /**
