@@ -17,6 +17,14 @@ const oidcClients =
       redirectUris: ["http://localhost:3000/e2e-callback"],
       postLogoutRedirectUris: ["http://localhost:3000/e2e-signed-out"],
     },
+    // A second client for the SSO test; its secret is "client-b-secret".
+    {
+      id: "client-b",
+      name: "client-b",
+      secretHash: createHash("sha256").update("client-b-secret").digest("hex"),
+      redirectUris: ["http://localhost:3000/client-b-callback"],
+      postLogoutRedirectUris: [],
+    },
   ]);
 
 // The mail helpers (e2e/helpers/mail-log.ts) read the same file the server writes.

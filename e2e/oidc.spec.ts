@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
+import { newEmail, PASSWORD, signedInUser, signUp } from "./helpers/account";
 import { confirmEmailLink } from "./helpers/verify";
 
 const ISSUER = "http://localhost:3000";
@@ -67,7 +68,6 @@ test("serves the public signing key without private material", async ({
 
 const CLIENT_ID = "e2e-client";
 const REDIRECT_URI = `${ISSUER}/e2e-callback`;
-const PASSWORD = "  twelve chars  ";
 
 function authorizeParams(overrides: Record<string, string | null> = {}) {
   const verifier = randomBytes(32).toString("base64url");
@@ -91,19 +91,6 @@ function authorizeParams(overrides: Record<string, string | null> = {}) {
 
 function authorizePath(overrides: Record<string, string | null> = {}) {
   return `/oauth/authorize?${authorizeParams(overrides)}`;
-}
-
-function newEmail() {
-  return `oidc-${Date.now()}-${randomUUID().slice(0, 8)}@example.com`;
-}
-
-async function signUp(page: Page, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
-  await page.getByLabel("表示名").fill("おーあいでぃーしー");
-  await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "登録する" }).click();
-  await expect(page.getByText("確認メールを送りました")).toBeVisible();
 }
 
 async function submitLogin(page: Page, email: string) {
@@ -317,17 +304,6 @@ function basic(id: string, secret: string) {
   // RFC 6749 §2.3.1: form-urlencode each part before base64.
   const encode = (value: string) => encodeURIComponent(value).replace(/%20/g, "+");
   return `Basic ${Buffer.from(`${encode(id)}:${encode(secret)}`).toString("base64")}`;
-}
-
-/** Signs up a confirmed user and leaves the page signed in. */
-async function signedInUser(page: Page) {
-  const email = newEmail();
-  await signUp(page, email);
-  await confirmEmailLink(page, (await lastMailTo(email, "verify")).link, { email, password: PASSWORD });
-  await expect(page.getByRole("heading", { name: "メールアドレスを確認しました" })).toBeVisible();
-  await page.goto("/account");
-  await expect(page).toHaveURL(/\/account$/);
-  return email;
 }
 
 /** Runs authorize for the signed-in page and returns the code with its PKCE verifier and nonce. */
