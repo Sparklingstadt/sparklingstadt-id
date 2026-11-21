@@ -25,6 +25,7 @@ Sparklingstadt のサービス共通のログイン窓口です。OpenID Connect
 | --- | --- |
 | `ID_ISSUER` | issuer の origin（例 `https://id.sparklingstadt.com`） |
 | `DATABASE_URL` | Postgres の接続文字列 |
+| `DATABASE_URL_UNPOOLED` | 任意。マイグレーション（`prisma.config.ts`）だけが `DATABASE_URL` より先に使う直結の接続文字列 |
 | `OIDC_SIGNING_KEY` | ID トークンの署名鍵（ES256 の秘密 JWK） |
 | `OIDC_PREVIOUS_PUBLIC_KEYS` | 任意。鍵を替えたときの古い公開鍵の JSON 配列。JWKS に残す |
 | `OIDC_CLIENTS` | 登録するクライアントの JSON 配列 |
@@ -87,10 +88,20 @@ pnpm run oidc:keygen
 
 ## 開発
 
+1. `.env.example` を `.env.local` にコピーします（Next.js と Prisma の設定が読むファイルです）。
+2. `.env.local` に次を設定します。
+   - `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/sparklingstadt_id`（`compose.yaml` の Postgres）
+   - `DATABASE_URL_UNPOOLED` は同じ値にするか、行ごと消します（マイグレーションはこちらを先に使うので、雛形のままにしない）。
+   - `ID_ISSUER=http://localhost:3000`
+   - `OIDC_SIGNING_KEY`：`pnpm run oidc:keygen` の出力
+   - `OIDC_CLIENTS`：`pnpm run oidc:client <id>` で作った JSON を配列に入れ、`redirectUris` を足す
+   - `MAIL_LOG=/tmp/sparklingstadt-id-mail.jsonl`：`RESEND_API_KEY` なしで試すとき。メールはこのファイルに書かれ、確認リンクを読める
+3. 起動します。
+
 ```sh
 pnpm install
 docker compose up -d --wait          # Postgres 17（127.0.0.1:55432）
-pnpm run db:deploy                   # DATABASE_URL を指さない場合は compose の DB を使う
+pnpm run db:deploy
 pnpm run dev
 ```
 
