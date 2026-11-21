@@ -21,6 +21,7 @@ test("serves the discovery document", async ({ request }) => {
     authorization_endpoint: `${ISSUER}/oauth/authorize`,
     token_endpoint: `${ISSUER}/oauth/token`,
     userinfo_endpoint: `${ISSUER}/oauth/userinfo`,
+    end_session_endpoint: `${ISSUER}/oauth/logout`,
     jwks_uri: `${ISSUER}/oauth/jwks`,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code"],

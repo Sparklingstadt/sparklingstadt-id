@@ -10,7 +10,8 @@
       "account": "マイページ",
       "verify": "メールアドレスの確認",
       "forgot": "パスワードの再設定",
-      "reset": "新しいパスワードの設定"
+      "reset": "新しいパスワードの設定",
+      "signedOut": "ログアウト完了"
     },
     "Fields": {
       "email": "メールアドレス",
@@ -114,6 +115,11 @@
       "invalidHeading": "リンクが無効か期限切れです",
       "invalidBody": "リンクはすでに使われたか、有効期限（1時間）が切れています。もう一度、再設定メールを送ってください。",
       "forgotLink": "再設定メールをもう一度送る"
+    },
+    "SignedOut": {
+      "heading": "ログアウトしました",
+      "body": "Sparklingstadt IDからログアウトしました。",
+      "loginLink": "もう一度ログインする"
     }
   }
 }

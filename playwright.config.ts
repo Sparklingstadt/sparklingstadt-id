@@ -15,7 +15,7 @@ const oidcClients =
       name: "e2e-client",
       secretHash: createHash("sha256").update("e2e-secret").digest("hex"),
       redirectUris: ["http://localhost:3000/e2e-callback"],
-      postLogoutRedirectUris: [],
+      postLogoutRedirectUris: ["http://localhost:3000/e2e-signed-out"],
     },
   ]);
 

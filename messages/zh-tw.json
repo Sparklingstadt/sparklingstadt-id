@@ -10,7 +10,8 @@
       "account": "我的帳戶",
       "verify": "確認電子郵件地址",
       "forgot": "重設密碼",
-      "reset": "設定新密碼"
+      "reset": "設定新密碼",
+      "signedOut": "已登出"
     },
     "Fields": {
       "email": "電子郵件地址",
@@ -114,6 +115,11 @@
       "invalidHeading": "連結無效或已過期",
       "invalidBody": "此連結已被使用或已超過有效期限（1 小時）。請重新寄送重設郵件。",
       "forgotLink": "重新寄送重設郵件"
+    },
+    "SignedOut": {
+      "heading": "已登出",
+      "body": "你已登出 Sparklingstadt ID。",
+      "loginLink": "重新登入"
     }
   }
 }

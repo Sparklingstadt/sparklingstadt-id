@@ -10,7 +10,8 @@
       "account": "我的账户",
       "verify": "确认电子邮件地址",
       "forgot": "重置密码",
-      "reset": "设置新密码"
+      "reset": "设置新密码",
+      "signedOut": "已退出登录"
     },
     "Fields": {
       "email": "电子邮件地址",
@@ -114,6 +115,11 @@
       "invalidHeading": "链接无效或已过期",
       "invalidBody": "该链接已被使用或已超过有效期（1 小时）。请重新发送重置邮件。",
       "forgotLink": "重新发送重置邮件"
+    },
+    "SignedOut": {
+      "heading": "已退出登录",
+      "body": "你已退出 Sparklingstadt ID。",
+      "loginLink": "重新登录"
     }
   }
 }

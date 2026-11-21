@@ -123,6 +123,7 @@ export function verifyJwt(
   token: string,
   keys: PublicJwk[],
   now: number,
+  options: { checkExpiry?: boolean } = {},
 ): Record<string, unknown> | null {
   try {
     if (typeof token !== "string") return null;
@@ -145,7 +146,7 @@ export function verifyJwt(
     if (!ok) return null;
     const payload = parseSegment(p);
     if (!isObject(payload)) return null;
-    if (typeof payload.exp !== "number" || !(payload.exp > now)) return null;
+    if (options.checkExpiry !== false && (typeof payload.exp !== "number" || !(payload.exp > now))) return null;
     return payload;
   } catch {
     return null;
