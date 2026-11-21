@@ -23,12 +23,14 @@ const oidcClients =
       name: "client-b",
       secretHash: createHash("sha256").update("client-b-secret").digest("hex"),
       redirectUris: ["http://localhost:3000/client-b-callback"],
-      postLogoutRedirectUris: [],
+      postLogoutRedirectUris: ["http://localhost:3000/client-b-signed-out"],
     },
   ]);
 
 // The mail helpers (e2e/helpers/mail-log.ts) read the same file the server writes.
 process.env.MAIL_LOG = mailLog;
+// Tests sign their own tokens (an expired access token cannot be waited for), so the workers get the server's key.
+process.env.OIDC_SIGNING_KEY ??= generateSigningJwk();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -50,7 +52,7 @@ export default defineConfig({
       ID_ISSUER: "http://localhost:3000",
       MAIL_LOG: mailLog,
       OIDC_CLIENTS: oidcClients,
-      OIDC_SIGNING_KEY: process.env.OIDC_SIGNING_KEY ?? generateSigningJwk(),
+      OIDC_SIGNING_KEY: process.env.OIDC_SIGNING_KEY,
     },
   },
 });

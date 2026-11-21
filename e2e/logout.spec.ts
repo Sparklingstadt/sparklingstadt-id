@@ -113,3 +113,74 @@ test("logout shows the signed-out page in the chosen language", async ({ page })
   expect(new URL(page.url()).pathname).toBe("/zh-tw/signed-out");
   await expect(page.getByRole("heading", { name: "已登出" })).toBeVisible();
 });
+
+/** Runs the code flow for the signed-in page and returns the ID token the client would hold. */
+async function obtainIdToken(page: Page): Promise<string> {
+  const verifier = randomBytes(32).toString("base64url");
+  const authorize = await page.request.get(
+    `/oauth/authorize?${new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: `${ISSUER}/e2e-callback`,
+      response_type: "code",
+      scope: "openid",
+      code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+      code_challenge_method: "S256",
+    })}`,
+    { maxRedirects: 0 },
+  );
+  const code = new URL(authorize.headers()["location"]).searchParams.get("code") as string;
+  const token = await page.request.post("/oauth/token", {
+    form: {
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: `${ISSUER}/e2e-callback`,
+      code_verifier: verifier,
+      client_id: CLIENT_ID,
+      client_secret: "e2e-secret",
+    },
+  });
+  expect(token.status()).toBe(200);
+  return (await token.json()).id_token;
+}
+
+test("logout with only an id_token_hint returns to that client's registered URI", async ({ page }) => {
+  await signedInUser(page);
+  const idToken = await obtainIdToken(page);
+  const token = await sessionToken(page);
+
+  const response = await page.request.get(logoutPath({ client_id: null, id_token_hint: idToken }), {
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers()["location"]).toBe(`${POST_LOGOUT_URI}?state=s`);
+  expect(await sessionRows(token)).toBe(0);
+});
+
+test("logout does not redirect when the id_token_hint is forged or names another client", async ({ page }) => {
+  await signedInUser(page);
+  const idToken = await obtainIdToken(page);
+  // client-b's own registered URI: it would be a valid target if the hint really named client-b.
+  const clientB = { post_logout_redirect_uri: `${ISSUER}/client-b-signed-out` };
+
+  // A hint whose audience was changed to client-b after signing.
+  const [header, payload, signature] = idToken.split(".");
+  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  const forgedPayload = Buffer.from(JSON.stringify({ ...claims, aud: "client-b" })).toString("base64url");
+  const tampered = await page.request.get(
+    logoutPath({ ...clientB, client_id: null, id_token_hint: `${header}.${forgedPayload}.${signature}` }),
+    { maxRedirects: 0 },
+  );
+  expect(tampered.status()).toBe(302);
+  expect(tampered.headers()["location"]).toBe("/signed-out");
+
+  // A genuine hint for e2e-client, but the request claims to be client-b.
+  const mismatch = await page.request.get(logoutPath({ ...clientB, client_id: "client-b", id_token_hint: idToken }), {
+    maxRedirects: 0,
+  });
+  expect(mismatch.status()).toBe(302);
+  expect(mismatch.headers()["location"]).toBe("/signed-out");
+
+  // Control: without the hint, client-b's URI is a valid target for client-b.
+  const control = await page.request.get(logoutPath({ ...clientB, client_id: "client-b" }), { maxRedirects: 0 });
+  expect(control.headers()["location"]).toBe(`${ISSUER}/client-b-signed-out?state=s`);
+});

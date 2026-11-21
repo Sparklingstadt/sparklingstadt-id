@@ -2,7 +2,9 @@ import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "no
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
 import { newEmail, PASSWORD, signedInUser, signUp } from "./helpers/account";
+import { deleteUser, expireAuthCode } from "./helpers/db";
 import { confirmEmailLink } from "./helpers/verify";
+import { loadSigningKey, signJwt } from "../lib/id/jwt";
 
 const ISSUER = "http://localhost:3000";
 
@@ -548,4 +550,92 @@ test("userinfo rejects a missing or tampered token", async ({ page, request }) =
   });
   expect(tampered.status()).toBe(401);
   expect(tampered.headers()["www-authenticate"]).toBe('Bearer error="invalid_token"');
+});
+
+/** Signs in a new user on the page and returns their tokens. */
+async function obtainTokens(page: Page, request: APIRequestContext) {
+  const email = await signedInUser(page);
+  const { code, verifier } = await obtainCode(page);
+  const response = await request.post("/oauth/token", {
+    headers: { Authorization: basic(CLIENT_ID, CLIENT_SECRET) },
+    form: tokenForm(code, verifier),
+  });
+  expect(response.status()).toBe(200);
+  const tokens: { access_token: string; id_token: string } = await response.json();
+  return { email, tokens };
+}
+
+test("token rejects a code issued to another client, and the code is spent", async ({ page, request }) => {
+  await signedInUser(page);
+  const { code, verifier } = await obtainCode(page);
+
+  // client-b authenticates correctly and sends everything else as issued: only the client differs.
+  const other = await request.post("/oauth/token", {
+    headers: { Authorization: basic("client-b", "client-b-secret") },
+    form: tokenForm(code, verifier),
+  });
+  expect(other.status()).toBe(400);
+  expect(await other.json()).toEqual({ error: "invalid_grant" });
+
+  // The attempt used the code up, so the client it was issued to cannot redeem it either.
+  const owner = await request.post("/oauth/token", {
+    headers: { Authorization: basic(CLIENT_ID, CLIENT_SECRET) },
+    form: tokenForm(code, verifier),
+  });
+  expect(owner.status()).toBe(400);
+  expect(await owner.json()).toEqual({ error: "invalid_grant" });
+});
+
+test("token rejects an expired code with invalid_grant", async ({ page, request }) => {
+  await signedInUser(page);
+  const { code, verifier } = await obtainCode(page);
+  expect(await expireAuthCode(code)).toBe(1);
+
+  const response = await request.post("/oauth/token", {
+    headers: { Authorization: basic(CLIENT_ID, CLIENT_SECRET) },
+    form: tokenForm(code, verifier),
+  });
+  expect(response.status()).toBe(400);
+  expect(await response.json()).toEqual({ error: "invalid_grant" });
+});
+
+test("userinfo rejects an expired access token", async ({ page, request }) => {
+  const { tokens } = await obtainTokens(page, request);
+  const { sub } = decodeSegment(tokens.id_token.split(".")[1]);
+  const key = loadSigningKey(process.env.OIDC_SIGNING_KEY as string);
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    iss: ISSUER,
+    sub,
+    aud: `${ISSUER}/oauth/userinfo`,
+    client_id: CLIENT_ID,
+    scope: "openid email profile",
+    iat: now - 600,
+  };
+
+  // Control: a token signed here is accepted while it is in date, so only the expiry fails below.
+  const inDate = await request.get("/oauth/userinfo", {
+    headers: { Authorization: `Bearer ${signJwt(key, { ...claims, exp: now + 60 })}` },
+  });
+  expect(inDate.status()).toBe(200);
+  expect((await inDate.json()).sub).toBe(sub);
+
+  const expired = await request.get("/oauth/userinfo", {
+    headers: { Authorization: `Bearer ${signJwt(key, { ...claims, exp: now - 1 })}` },
+  });
+  expect(expired.status()).toBe(401);
+  expect(expired.headers()["www-authenticate"]).toBe('Bearer error="invalid_token"');
+  expect(await expired.json()).toEqual({ error: "invalid_token" });
+});
+
+test("userinfo rejects the token of an account that no longer exists", async ({ page, request }) => {
+  const { email, tokens } = await obtainTokens(page, request);
+  const authorization = { Authorization: `Bearer ${tokens.access_token}` };
+  expect((await request.get("/oauth/userinfo", { headers: authorization })).status()).toBe(200);
+
+  expect(await deleteUser(email)).toBe(1);
+
+  const response = await request.get("/oauth/userinfo", { headers: authorization });
+  expect(response.status()).toBe(401);
+  expect(await response.json()).toEqual({ error: "invalid_token" });
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
+import { expireMailedLink } from "./helpers/db";
 import { CONFIRM_BUTTON, confirmEmailLink } from "./helpers/verify";
 
 // Each test gets its own client IP so the per-IP throttles never trip across the suite.
@@ -555,4 +556,56 @@ test("the zh-cn and zh-tw ID pages render in Chinese", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "创建 Sparklingstadt ID" })).toBeVisible();
   await page.goto("/zh-tw/login");
   await expect(page.getByRole("heading", { name: "使用 Sparklingstadt ID 登入" })).toBeVisible();
+});
+
+test("a verify link past its 24 hours is refused, on the button and on a later visit", async ({ page }) => {
+  const email = newEmail();
+  await signUp(page, email);
+  const { link } = await lastMailTo(email, "verify");
+
+  // Open the link while it is still good (logging in on the way), then let it run out before pressing the button.
+  await page.goto(link);
+  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const button = page.getByRole("button", { name: CONFIRM_BUTTON });
+  await expect(button).toBeVisible();
+  expect(await expireMailedLink(link)).toBe(1);
+  await button.click();
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+
+  // Opening it again offers no button.
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+  await expect(page.getByRole("button", { name: CONFIRM_BUTTON })).toHaveCount(0);
+
+  // The address is still unconfirmed.
+  await page.goto("/account");
+  await expect(page.getByRole("button", { name: "確認メールを再送" })).toBeVisible();
+});
+
+test("a reset link past its hour is refused and leaves the password as it was", async ({ page }) => {
+  const email = newEmail();
+  await signUpVerifiedAndLogIn(page, email);
+  await page.context().clearCookies();
+  const before = (await readMails()).length;
+  await requestReset(page, email);
+  const { link } = await lastMailTo(email, "resetPassword", { after: before });
+
+  // Open the form while the link is still good, then let it run out before submitting.
+  await page.goto(link);
+  await page.getByLabel("新しいパスワード").fill("a brand new password");
+  expect(await expireMailedLink(link)).toBe(1);
+  await page.getByRole("button", { name: "パスワードを設定" }).click();
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+
+  // Opening it again shows no form.
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+  await expect(page.getByLabel("新しいパスワード")).toHaveCount(0);
+
+  await logIn(page, email, "a brand new password");
+  await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
+  await logIn(page, email);
+  await expect(page).toHaveURL(/\/account$/);
 });
