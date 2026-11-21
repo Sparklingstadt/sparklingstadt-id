@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
-import { expireMailedLink } from "./helpers/db";
+import { expireMailedLink, passwordHashOf, setPasswordHash, setThrottle } from "./helpers/db";
 import { CONFIRM_BUTTON, confirmEmailLink } from "./helpers/verify";
 
 // Each test gets its own client IP so the per-IP throttles never trip across the suite.
@@ -143,6 +143,43 @@ test("rejects a wrong password with one message and throttles", async ({ page })
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("a login hashes the password again when it was stored with the earlier parameters", async ({ page }) => {
+  const email = newEmail();
+  await signUp(page, email);
+  // A row as it was written before the cost was raised (N=2^14, r=8, p=1).
+  const salt = randomBytes(16);
+  const key = scryptSync(PASSWORD.normalize("NFKC"), salt, 64, { N: 16384, r: 8, p: 1 });
+  const earlier = ["scrypt", 16384, 8, 1, salt.toString("base64url"), key.toString("base64url")].join("$");
+  expect(await setPasswordHash(email, earlier)).toBe(1);
+
+  await logIn(page, email);
+  await expect(page).toHaveURL(/\/account$/);
+  expect(await passwordHashOf(email)).toMatch(/^scrypt\$65536\$8\$2\$/);
+
+  // The new hash is of the same password.
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  await logIn(page, email);
+  await expect(page).toHaveURL(/\/account$/);
+});
+
+test("an account refuses logins after 30 attempts from anywhere, until its password is reset", async ({ page }) => {
+  const email = newEmail();
+  await signUp(page, email);
+  // One address is stopped after 5 attempts; this is the count over every address in the window.
+  await setThrottle(`login:mail:${email}`, 29);
+  await logIn(page, email, "wrong password!!");
+  await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
+  await logIn(page, email);
+  await expect(page.locator("form [role=alert]")).toHaveText("試行回数が多すぎます。しばらくしてからお試しください。");
+
+  // Whoever holds the mailbox is not locked out: a reset clears the count.
+  await requestReset(page, email);
+  await setNewPassword(page, (await lastMailTo(email, "resetPassword")).link, "a brand new password");
+  await expect(page).toHaveURL(/\/login\?reset=done$/);
+  await logIn(page, email, "a brand new password");
+  await expect(page).toHaveURL(/\/account$/);
+});
+
 test("unverified users see the resend notice", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
@@ -264,6 +301,11 @@ test("changes the email after the new address is confirmed", async ({ page }) =>
   await page.reload();
   await expect(profileValue(page, "メールアドレス")).toHaveText(oldEmail);
 
+  // The current address is told about the request, with the way to stop it: a password reset cancels it.
+  const notice = await lastMailTo(oldEmail, "emailChangeRequested");
+  expect(notice.link).toBe("http://localhost:3000/forgot");
+  expect(notice.text).not.toContain(nextEmail);
+
   const { link } = await lastMailTo(nextEmail, "changeEmail");
   expect(link).toMatch(/^http:\/\/localhost:3000\/verify\?token=[\w-]{43}$/);
   await confirmEmailLink(page, link);
@@ -361,6 +403,29 @@ test("an email change to an address taken meanwhile shows that it cannot be used
   await expect(page.getByRole("heading", { name: "このメールアドレスは使えません" })).toBeVisible();
   await page.goto("/account");
   await expect(profileValue(page, "メールアドレス")).toHaveText(email);
+});
+
+test("an email change signs out the other sessions and keeps this one", async ({ page, browser }) => {
+  const email = newEmail();
+  const nextEmail = newEmail();
+  await signUpVerifiedAndLogIn(page, email);
+
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const otherPage = await other.newPage();
+  await logIn(otherPage, email);
+  await expect(otherPage).toHaveURL(/\/account$/);
+
+  await requestEmailChange(page, nextEmail);
+  await confirmEmailLink(page, (await lastMailTo(nextEmail, "changeEmail")).link);
+  await expect(page.getByRole("heading", { name: "メールアドレスを変更しました" })).toBeVisible();
+
+  await otherPage.goto("/account");
+  await expect(otherPage).toHaveURL(/\/login\?next=%2Faccount$/);
+  await other.close();
+
+  await page.goto("/account");
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(profileValue(page, "メールアドレス")).toHaveText(nextEmail);
 });
 
 test("changes the password and signs out the other sessions", async ({ page, browser }) => {

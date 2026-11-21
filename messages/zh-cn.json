@@ -11,6 +11,7 @@
       "verify": "确认电子邮件地址",
       "forgot": "重置密码",
       "reset": "设置新密码",
+      "logout": "确认退出登录",
       "signedOut": "已退出登录"
     },
     "Fields": {
@@ -88,7 +89,7 @@
       "wrongAccountBody": "此链接不属于当前登录的 Sparklingstadt ID。请先退出，再使用收到邮件的 Sparklingstadt ID 重新登录。",
       "toAccount": "前往我的账户",
       "emailChangedHeading": "电子邮件地址已更改",
-      "emailChangedBody": "今后请使用新的电子邮件地址登录。",
+      "emailChangedBody": "今后请使用新的电子邮件地址登录。其他设备已退出登录。",
       "confirmHeading": "确认电子邮件地址",
       "confirmBody": "点击下方按钮，即可完成此电子邮件地址的确认。",
       "confirmSubmit": "确认电子邮件地址",
@@ -115,6 +116,12 @@
       "invalidHeading": "链接无效或已过期",
       "invalidBody": "该链接已被使用或已超过有效期（1 小时）。请重新发送重置邮件。",
       "forgotLink": "重新发送重置邮件"
+    },
+    "Logout": {
+      "heading": "要退出登录吗？",
+      "body": "将退出 Sparklingstadt ID。",
+      "submit": "退出登录",
+      "cancel": "不退出"
     },
     "SignedOut": {
       "heading": "已退出登录",

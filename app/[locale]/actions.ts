@@ -19,6 +19,8 @@ import {
   signUp,
 } from "@/lib/id/accounts";
 import { clientIp } from "@/lib/id/client-ip";
+import { getOidcConfig } from "@/lib/id/config";
+import { LOGOUT_PARAMS, resolvePostLogoutRedirect } from "@/lib/id/logout";
 import { createSession, destroySession, getCurrentUser } from "@/lib/id/session";
 import { verifyLoginPath } from "./_components/verify-path";
 import { normalizeEmail, safeNextPath, ValidationError } from "@/lib/id/validation";
@@ -85,6 +87,26 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
 export async function logOutAction(formData: FormData): Promise<void> {
   await destroySession();
   redirect(getPathname({ href: "/login", locale: formLocale(formData) }));
+}
+
+/**
+ * The logout question's button (/oauth/logout sends a request there that it cannot tell from a planted link):
+ * ends the session, then goes back to the client when the request names a registered address.
+ */
+export async function confirmLogoutAction(formData: FormData): Promise<void> {
+  const params = new URLSearchParams();
+  for (const name of LOGOUT_PARAMS) {
+    const value = text(formData, name);
+    if (value) params.set(name, value);
+  }
+  await destroySession();
+  let target: string | null = null;
+  try {
+    target = resolvePostLogoutRedirect(getOidcConfig(), params);
+  } catch {
+    // Not configured: still signed out, stay on our own page.
+  }
+  redirect(target ?? getPathname({ href: "/signed-out", locale: formLocale(formData) }));
 }
 
 export async function resendVerificationAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -173,7 +195,7 @@ export async function confirmEmailAction(_state: VerifyState, formData: FormData
   const token = text(formData, "token");
   const current = await getCurrentUser();
   if (!current) redirect(verifyLoginPath(formLocale(formData), token));
-  const result = await confirmEmailToken(token, current.user.id);
+  const result = await confirmEmailToken(token, current.user.id, current.session.id);
   if (result.ok) return { outcome: result.purpose === "change_email" ? "emailChanged" : "verified" };
   return { outcome: result.reason };
 }

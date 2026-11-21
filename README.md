@@ -15,9 +15,9 @@ Sparklingstadt のサービス共通のログイン窓口です。OpenID Connect
 | `POST /oauth/token` | コードを ID トークン・アクセストークンに換える（`client_secret_basic` / `client_secret_post`、PKCE は S256 のみ） |
 | `GET /oauth/jwks` | 署名の公開鍵（JWKS） |
 | `GET /oauth/userinfo` | アクセストークンで現在のプロフィール（`sub`・`email`・`email_verified`・`name`）を返す |
-| `GET /oauth/logout` | RP-Initiated Logout 1.0。`post_logout_redirect_uri` が登録と完全一致のときだけ戻す |
+| `GET /oauth/logout` | RP-Initiated Logout 1.0。ログイン中の利用者の ID トークンが `id_token_hint` にあれば、そのままログアウトする。なければ確認の画面（`/logout`）を出す。`post_logout_redirect_uri` が登録と完全一致のときだけ戻す |
 
-画面は `/signup`・`/login`・`/account`・`/verify`・`/forgot`・`/reset`・`/signed-out`（日本語は接頭辞なし、`/zh-cn/…`・`/zh-tw/…`）です。ID トークンは ES256 で署名し、クレームは `iss`・`sub`・`aud`・`iat`・`exp`・`auth_time`・`nonce`・`email`・`email_verified`・`name` です。`role` は返しません。
+画面は `/signup`・`/login`・`/account`・`/verify`・`/forgot`・`/reset`・`/logout`・`/signed-out`（日本語は接頭辞なし、`/zh-cn/…`・`/zh-tw/…`）です。ID トークンは ES256 で署名し、クレームは `iss`・`sub`・`aud`・`iat`・`exp`・`auth_time`・`nonce`・`email`・`email_verified`・`name` です。`role` は返しません。
 
 ## 環境変数
 

@@ -11,6 +11,7 @@
       "verify": "メールアドレスの確認",
       "forgot": "パスワードの再設定",
       "reset": "新しいパスワードの設定",
+      "logout": "ログアウトの確認",
       "signedOut": "ログアウト完了"
     },
     "Fields": {
@@ -88,7 +89,7 @@
       "wrongAccountBody": "このリンクは、いまログインしているSparklingstadt IDのものではありません。ログアウトしてから、メールを受け取ったSparklingstadt IDでログインし直してください。",
       "toAccount": "マイページへ",
       "emailChangedHeading": "メールアドレスを変更しました",
-      "emailChangedBody": "これからは新しいメールアドレスでログインしてください。",
+      "emailChangedBody": "これからは新しいメールアドレスでログインしてください。ほかの端末ではログアウトしました。",
       "confirmHeading": "メールアドレスの確認",
       "confirmBody": "下のボタンを押すと、このメールアドレスの確認が完了します。",
       "confirmSubmit": "メールアドレスを確認する",
@@ -115,6 +116,12 @@
       "invalidHeading": "リンクが無効か期限切れです",
       "invalidBody": "リンクはすでに使われたか、有効期限（1時間）が切れています。もう一度、再設定メールを送ってください。",
       "forgotLink": "再設定メールをもう一度送る"
+    },
+    "Logout": {
+      "heading": "ログアウトしますか？",
+      "body": "Sparklingstadt IDからログアウトします。",
+      "submit": "ログアウトする",
+      "cancel": "ログアウトしない"
     },
     "SignedOut": {
       "heading": "ログアウトしました",
