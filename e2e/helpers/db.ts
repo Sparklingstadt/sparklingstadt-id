@@ -44,6 +44,15 @@ export async function sessionExists(token: string): Promise<boolean> {
   return ((await query("select 1 from ba_sessions where token = $1", [token])).rowCount ?? 0) > 0;
 }
 
+/** Makes the session older than Better Auth's 24 hours of freshness (it lasts 30 days). Returns the rows changed. */
+export function ageSession(token: string): Promise<number> {
+  return run(
+    `update ba_sessions set created_at = now() at time zone 'UTC' - interval '2 days',
+     updated_at = now() at time zone 'UTC' - interval '2 days' where token = $1`,
+    [token],
+  );
+}
+
 /**
  * Puts the token of a mailed link (`…?token=…`) past its lifetime. Returns the number of rows changed.
  * Reset links and email change links are rows; a verify link is a signed token with its expiry inside

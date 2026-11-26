@@ -6,7 +6,7 @@ import { authClient } from "@/lib/auth-client";
 type Labels = Record<"heading" | "lead" | "name" | "namePlaceholder" | "add" | "pending" | "empty" | "delete" | "failed" | "unnamed", string>;
 
 /** The signed-in user's passkeys: named, listed, added and deleted here (any number of them). */
-export function PasskeySection({ labels }: { labels: Labels }) {
+export function PasskeySection({ labels, freshLoginHref }: { labels: Labels; freshLoginHref: string }) {
   const { data: passkeys, refetch } = authClient.useListPasskeys();
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
@@ -18,6 +18,11 @@ export function PasskeySection({ labels }: { labels: Labels }) {
     setFailed(false);
     const { error } = await authClient.passkey.addPasskey({ name: name.trim() || undefined });
     setPending(false);
+    // Adding a credential needs a sign-in from the last 24 hours (Better Auth's freshAge): ask for one, then come back.
+    if (error && error.status === 403) {
+      window.location.assign(freshLoginHref);
+      return;
+    }
     if (error) {
       setFailed(true);
       return;

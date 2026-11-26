@@ -78,6 +78,11 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
         }}
       />
       <PasskeySection
+        freshLoginHref={`${getPathname({ href: "/login", locale })}?${new URLSearchParams({
+          reauth: "1",
+          fresh: "1",
+          next: getPathname({ href: "/account", locale }),
+        })}`}
         labels={{
           heading: t("Account.passkeysHeading"),
           lead: t("Account.passkeysLead"),

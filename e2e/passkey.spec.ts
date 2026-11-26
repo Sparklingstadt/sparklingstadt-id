@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { newEmail, PASSWORD, signedInUser, signUp, testIp } from "./helpers/account";
-import { sessionExists } from "./helpers/db";
+import { ageSession, sessionExists } from "./helpers/db";
 import { addVirtualAuthenticator } from "./helpers/webauthn";
 
 const ISSUER = "http://localhost:3000";
@@ -162,6 +162,31 @@ test("the email field offers the passkey and signing in with it needs no button"
   await expect(page.getByLabel("メールアドレス", { exact: true })).toHaveAttribute("autocomplete", "username webauthn");
   // The virtual authenticator answers the conditional request itself.
   await expect(page).toHaveURL(/\/account$/);
+});
+
+test("adding a passkey with an old session asks for a fresh login and then succeeds", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  const cookie = (await page.context().cookies()).find((c) => c.name.endsWith("session_token"));
+  const oldToken = decodeURIComponent(cookie?.value ?? "").split(".")[0];
+  expect(await ageSession(oldToken)).toBe(1);
+
+  await page.goto("/account");
+  await page.getByLabel("パスキーの名前").fill("古いセッション");
+  await page.getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(page).toHaveURL(/\/login\?/);
+  expect(new URL(page.url()).searchParams.get("next")).toBe("/account");
+  await expect(page.getByText("パスキーを追加するには、もう一度ログインしてください。")).toBeVisible();
+
+  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  // The old session is replaced, not left behind.
+  expect(await sessionExists(oldToken)).toBe(false);
+
+  await addPasskey(page, "新しいセッション");
 });
 
 test.fixme("passkey login does not ask for the 2FA code", async () => {

@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps<"/[locale]/login">)
 export default async function LogInPage({ params, searchParams }: PageProps<"/[locale]/login">) {
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
-  const { next, reset, confirm, reauth } = await searchParams;
+  const { next, reset, confirm, reauth, fresh } = await searchParams;
   // Where to go once signed in; the same check applies when a signed-in visitor opens this page.
   const target = safeNextPath(typeof next === "string" ? next : "", getPathname({ href: "/account", locale }));
   // Already signed in: go straight on, unless a service asked for the login again (prompt=login).
@@ -33,6 +33,7 @@ export default async function LogInPage({ params, searchParams }: PageProps<"/[l
       <p className="id-lead">{t("Login.lead")}</p>
       {reset === "done" ? <p className="id-notice" role="status">{t("Login.passwordReset")}</p> : null}
       {confirm === "1" ? <p className="id-notice" role="status">{t("Login.confirmFirst")}</p> : null}
+      {fresh === "1" ? <p className="id-notice" role="status">{t("Login.freshRequired")}</p> : null}
       <LogInForm
         redirectTo={target}
         labels={{

@@ -53,7 +53,8 @@
       "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。",
       "passkey": "使用通行金鑰（指紋）登入",
       "passkeyPending": "確認中…",
-      "passkeyFailed": "無法使用通行金鑰登入。請使用電子郵件和密碼登入，或再試一次。"
+      "passkeyFailed": "無法使用通行金鑰登入。請使用電子郵件和密碼登入，或再試一次。",
+      "freshRequired": "新增通行金鑰需要重新登入。請再登入一次。"
     },
     "Account": {
       "heading": "我的帳戶",
