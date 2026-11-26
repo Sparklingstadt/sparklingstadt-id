@@ -1,7 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { Pool } from "pg";
 import { expect, test, type Page } from "@playwright/test";
-import { hashToken } from "../lib/id/tokens";
+import { sessionExists } from "./helpers/db";
 import { lastMailTo } from "./helpers/mail-log";
 import { testIp } from "./helpers/account";
 import { confirmEmailLink } from "./helpers/verify";
@@ -11,14 +10,8 @@ const CLIENT_ID = "e2e-client";
 const POST_LOGOUT_URI = `${ISSUER}/e2e-signed-out`;
 const PASSWORD = "  twelve chars  ";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:55432/sparklingstadt_id",
-});
-test.afterAll(() => pool.end());
-
 async function sessionRows(token: string): Promise<number> {
-  const { rows } = await pool.query("select count(*)::int as n from sessions where token_hash = $1", [hashToken(token)]);
-  return rows[0].n;
+  return (await sessionExists(token)) ? 1 : 0;
 }
 
 // Each test gets its own client IP so per-IP throttles never trip.
@@ -55,9 +48,10 @@ async function signedInUser(page: Page) {
 }
 
 async function sessionToken(page: Page): Promise<string> {
-  const cookie = (await page.context().cookies()).find((c) => c.name === "sid_session");
+  const cookie = (await page.context().cookies()).find((c) => c.name.endsWith("session_token"));
   expect(cookie).toBeDefined();
-  return cookie!.value;
+  // The cookie holds "<session token>.<signature>"; the row is keyed by the token.
+  return decodeURIComponent(cookie!.value).split(".")[0];
 }
 
 function authorizePath() {
@@ -91,7 +85,7 @@ test("logout without an id_token_hint asks first, then ends the session and retu
   await page.getByRole("button", { name: "ログアウトする" }).click();
   await page.waitForURL(`${POST_LOGOUT_URI}?state=s`);
 
-  expect((await page.context().cookies()).find((c) => c.name === "sid_session")).toBeUndefined();
+  expect((await page.context().cookies()).find((c) => c.name.endsWith("session_token"))).toBeUndefined();
   expect(await sessionRows(token)).toBe(0);
 
   // The next authorize asks for a login again.
@@ -145,7 +139,7 @@ async function obtainIdToken(page: Page): Promise<string> {
       client_id: CLIENT_ID,
       redirect_uri: `${ISSUER}/e2e-callback`,
       response_type: "code",
-      scope: "openid",
+      scope: "openid email profile",
       code_challenge: createHash("sha256").update(verifier).digest("base64url"),
       code_challenge_method: "S256",
     })}`,

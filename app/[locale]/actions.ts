@@ -17,7 +17,6 @@ import {
   resetPassword,
   signUp,
 } from "@/lib/id/accounts";
-import { getOidcConfig } from "@/lib/id/config";
 import { LOGOUT_PARAMS, resolvePostLogoutRedirect } from "@/lib/id/logout";
 import { destroySession, getCurrentUser } from "@/lib/id/session";
 import { verifyLoginPath } from "./_components/verify-path";
@@ -82,9 +81,10 @@ export async function confirmLogoutAction(formData: FormData): Promise<void> {
   await destroySession();
   let target: string | null = null;
   try {
-    target = resolvePostLogoutRedirect(getOidcConfig(), params);
-  } catch {
-    // Not configured: still signed out, stay on our own page.
+    target = await resolvePostLogoutRedirect(params);
+  } catch (error) {
+    // Still signed out: stay on our own page.
+    console.error("[id] failed to resolve the post-logout address:", error instanceof Error ? error.message : error);
   }
   redirect(target ?? getPathname({ href: "/signed-out", locale: formLocale(formData) }));
 }
