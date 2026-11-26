@@ -1,18 +1,26 @@
 "use client";
 
 import { useActionState } from "react";
-import type { Locale } from "@/i18n/routing";
-import { logInAction } from "../actions";
+import { authClient } from "@/lib/auth-client";
+import type { FormState } from "../actions";
 
-type Labels = Record<"email" | "password" | "submit" | "pending", string>;
+type Labels = Record<"email" | "password" | "submit" | "pending" | "invalidCredentials" | "throttled", string>;
 
-export function LogInForm({ locale, next, labels }: { locale: Locale; next: string; labels: Labels }) {
-  const [state, action, pending] = useActionState(logInAction, undefined);
+export function LogInForm({ redirectTo, labels }: { redirectTo: string; labels: Labels }) {
+  // A form action (not an onSubmit handler) so that a submit before hydration is replayed, never sent as a plain GET.
+  const [state, action, pending] = useActionState(async (_previous: FormState, formData: FormData): Promise<FormState> => {
+    const email = String(formData.get("email") ?? "").trim();
+    const { error } = await authClient.signIn.email({ email, password: String(formData.get("password") ?? "") });
+    if (error) {
+      // One message for an unknown address, a wrong password and a malformed address.
+      return { error: error.status === 429 ? labels.throttled : labels.invalidCredentials, fields: { email } };
+    }
+    window.location.assign(redirectTo);
+    return { fields: { email } };
+  }, undefined);
 
   return (
     <form className="id-form" action={action}>
-      <input type="hidden" name="locale" value={locale} />
-      <input type="hidden" name="next" value={next} />
       <div className="id-field">
         <label htmlFor="email">{labels.email}</label>
         <input id="email" name="email" type="email" autoComplete="username" required

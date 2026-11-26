@@ -20,12 +20,10 @@ export default async function LogInPage({ params, searchParams }: PageProps<"/[l
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
   const { next, reset, confirm, reauth } = await searchParams;
-  const nextValue = typeof next === "string" ? next : "";
-  // Already signed in: go straight on (the same check the action applies after login), unless a service asked for
-  // the login again (prompt=login).
-  if (reauth !== "1" && (await getCurrentUser())) {
-    redirect(safeNextPath(nextValue, getPathname({ href: "/account", locale })));
-  }
+  // Where to go once signed in; the same check applies when a signed-in visitor opens this page.
+  const target = safeNextPath(typeof next === "string" ? next : "", getPathname({ href: "/account", locale }));
+  // Already signed in: go straight on, unless a service asked for the login again (prompt=login).
+  if (reauth !== "1" && (await getCurrentUser())) redirect(target);
 
   const t = await getTranslations({ locale, namespace: "Id" });
   return (
@@ -35,13 +33,14 @@ export default async function LogInPage({ params, searchParams }: PageProps<"/[l
       {reset === "done" ? <p className="id-notice" role="status">{t("Login.passwordReset")}</p> : null}
       {confirm === "1" ? <p className="id-notice" role="status">{t("Login.confirmFirst")}</p> : null}
       <LogInForm
-        locale={locale}
-        next={nextValue}
+        redirectTo={target}
         labels={{
           email: t("Fields.email"),
           password: t("Fields.password"),
           submit: t("Login.submit"),
           pending: t("Login.pending"),
+          invalidCredentials: t("Errors.invalidCredentials"),
+          throttled: t("Errors.throttled"),
         }}
       />
       <p className="id-links">

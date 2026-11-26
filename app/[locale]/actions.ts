@@ -2,7 +2,6 @@
 
 import { hasLocale } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { headers } from "next/headers";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
@@ -10,20 +9,18 @@ import { routing, type Locale } from "@/i18n/routing";
 import {
   changeDisplayName,
   changePassword,
-  confirmEmailToken,
-  logIn,
+  confirmEmail,
   requestEmailChange,
   requestPasswordReset,
   resendVerification,
   resetPassword,
   signUp,
 } from "@/lib/id/accounts";
-import { clientIp } from "@/lib/id/client-ip";
 import { getOidcConfig } from "@/lib/id/config";
 import { LOGOUT_PARAMS, resolvePostLogoutRedirect } from "@/lib/id/logout";
-import { createSession, destroySession, getCurrentUser } from "@/lib/id/session";
+import { destroySession, getCurrentUser } from "@/lib/id/session";
 import { verifyLoginPath } from "./_components/verify-path";
-import { normalizeEmail, safeNextPath, ValidationError } from "@/lib/id/validation";
+import { normalizeEmail, ValidationError } from "@/lib/id/validation";
 
 /** Never carries the password back to the form. */
 export type FormState =
@@ -38,10 +35,6 @@ function text(formData: FormData, name: string): string {
 function formLocale(formData: FormData): Locale {
   const value = text(formData, "locale");
   return hasLocale(routing.locales, value) ? value : routing.defaultLocale;
-}
-
-async function requestIp(): Promise<string> {
-  return clientIp(await headers());
 }
 
 /** The signed-in user for an account form, or a redirect to the login page. */
@@ -62,26 +55,11 @@ export async function signUpAction(_state: FormState, formData: FormData): Promi
   const t = await getTranslations({ locale, namespace: "Id" });
   const fields = { email: text(formData, "email"), displayName: text(formData, "displayName") };
   try {
-    const result = await signUp({ ...fields, password: text(formData, "password"), locale, ip: await requestIp() });
-    if (result === "throttled") return { error: t("Errors.throttled"), fields };
+    await signUp({ ...fields, password: text(formData, "password") });
     return { notice: t("Signup.sentBody", { email: normalizeEmail(fields.email) }) };
   } catch (error) {
     return { error: t(validationErrorKey(error)), fields };
   }
-}
-
-export async function logInAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const locale = formLocale(formData);
-  const fields = { email: text(formData, "email") };
-  const result = await logIn({ email: fields.email, password: text(formData, "password"), ip: await requestIp() });
-  if (!result.ok) {
-    const t = await getTranslations({ locale, namespace: "Id.Errors" });
-    return { error: t(result.reason === "throttled" ? "throttled" : "invalidCredentials"), fields };
-  }
-  // Signing in again over a session (prompt=login) replaces it rather than leaving its row behind.
-  await destroySession();
-  await createSession(result.userId, result.sessionVersion);
-  redirect(safeNextPath(text(formData, "next"), getPathname({ href: "/account", locale })));
 }
 
 export async function logOutAction(formData: FormData): Promise<void> {
@@ -115,22 +93,21 @@ export async function resendVerificationAction(_state: FormState, formData: Form
   const t = await getTranslations({ locale, namespace: "Id" });
   let result: Awaited<ReturnType<typeof resendVerification>>;
   try {
-    result = await resendVerification(user.id, locale, await requestIp());
+    result = await resendVerification(user.email);
   } catch (error) {
     console.error("[id] failed to resend the verify mail:", error instanceof Error ? error.message : error);
     return { error: t("Errors.mailFailed") };
   }
-  if (result === "throttled") return { error: t("Errors.throttled") };
   return { notice: t(result === "sent" ? "Account.resent" : "Account.alreadyVerified") };
 }
 
 export async function changeDisplayNameAction(_state: FormState, formData: FormData): Promise<FormState> {
   const locale = formLocale(formData);
-  const user = await requireUser(locale);
+  await requireUser(locale);
   const t = await getTranslations({ locale, namespace: "Id" });
   const fields = { displayName: text(formData, "displayName") };
   try {
-    await changeDisplayName(user.id, fields.displayName);
+    await changeDisplayName(fields.displayName);
   } catch (error) {
     return { error: t(validationErrorKey(error)), fields };
   }
@@ -144,13 +121,7 @@ export async function requestEmailChangeAction(_state: FormState, formData: Form
   const t = await getTranslations({ locale, namespace: "Id" });
   const fields = { email: text(formData, "email") };
   try {
-    const result = await requestEmailChange(
-      user.id,
-      fields.email,
-      text(formData, "currentPassword"),
-      locale,
-      await requestIp(),
-    );
+    const result = await requestEmailChange(user, fields.email, text(formData, "currentPassword"));
     if (result !== "sent") return { error: t(`Errors.${result}`), fields };
     return { notice: t("Account.emailChangeSent", { email: normalizeEmail(fields.email) }) };
   } catch (error) {
@@ -168,9 +139,7 @@ export async function changePasswordAction(_state: FormState, formData: FormData
   } catch (error) {
     return { error: t(validationErrorKey(error)) };
   }
-  if (!result.ok) return { error: t(`Errors.${result.reason}`) };
-  // Every session was revoked, this one included: sign this browser in again.
-  await createSession(user.id, result.sessionVersion);
+  if (result !== "ok") return { error: t(`Errors.${result}`) };
   return { notice: t("Account.passwordChanged") };
 }
 
@@ -178,8 +147,7 @@ export async function requestPasswordResetAction(_state: FormState, formData: Fo
   const locale = formLocale(formData);
   const t = await getTranslations({ locale, namespace: "Id" });
   const fields = { email: text(formData, "email") };
-  const result = await requestPasswordReset(fields.email, locale, await requestIp());
-  if (result === "throttled") return { error: t("Errors.throttled"), fields };
+  await requestPasswordReset(fields.email);
   return { notice: t("Forgot.sentBody") };
 }
 
@@ -188,14 +156,14 @@ export type VerifyState =
   | undefined;
 
 /**
- * The verify page's button: the only place a verify / change_email link is used (never on GET).
+ * The verify page's button: the only place a verify / email change link is used (never on GET).
  * Only the account the link was sent for can use it, so it needs that account to be signed in.
  */
 export async function confirmEmailAction(_state: VerifyState, formData: FormData): Promise<VerifyState> {
   const token = text(formData, "token");
   const current = await getCurrentUser();
   if (!current) redirect(verifyLoginPath(formLocale(formData), token));
-  const result = await confirmEmailToken(token, current.user.id, current.session.id);
+  const result = await confirmEmail(token, { userId: current.user.id, sessionId: current.session.id });
   if (result.ok) return { outcome: result.purpose === "change_email" ? "emailChanged" : "verified" };
   return { outcome: result.reason };
 }

@@ -32,10 +32,10 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
     <IdShell locale={locale} pathname="/account">
       <h1>{t("Account.heading")}</h1>
       <dl className="id-profile">
-        <div><dt>{t("Account.displayName")}</dt><dd>{user.displayName}</dd></div>
+        <div><dt>{t("Account.displayName")}</dt><dd>{user.name}</dd></div>
         <div><dt>{t("Account.email")}</dt><dd>{user.email}</dd></div>
       </dl>
-      {user.emailVerifiedAt ? null : (
+      {user.emailVerified ? null : (
         <div className="id-section">
           <p className="id-alert">
             {verify === "required" ? `${t("Account.verifyRequired")} ` : null}

@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 5. Unconfirmed email: the account page asks to confirm it first.
-  if (!current.user.emailVerifiedAt) {
+  if (!current.user.emailVerified) {
     if (prompt.none) return authorizeError(redirectUri, "interaction_required", state);
     return redirectTo(`${getPathname({ href: "/account", locale })}?verify=required`);
   }

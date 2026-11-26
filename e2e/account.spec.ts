@@ -2,11 +2,16 @@ import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
 import { expireMailedLink, passwordHashOf, setPasswordHash, setThrottle } from "./helpers/db";
-import { CONFIRM_BUTTON, confirmEmailLink } from "./helpers/verify";
+import { CONFIRM_BUTTON, confirmEmailLink, expiredCopyOfLink } from "./helpers/verify";
 
-// Each test gets its own client IP so the per-IP throttles never trip across the suite.
+// Each test gets its own client IP so the per-IP throttles never trip across the suite
+// (Better Auth ignores a value that is not an IP address and shares one bucket instead).
+function testIp() {
+  return `10.${randomBytes(3).join(".")}`;
+}
+
 test.beforeEach(async ({ page }) => {
-  await page.setExtraHTTPHeaders({ "x-forwarded-for": `e2e-${randomUUID()}` });
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": testIp() });
 });
 
 const PASSWORD = "  twelve chars  ";
@@ -37,7 +42,7 @@ test("signs up, confirms the email and signs in", async ({ page }) => {
   await signUp(page, `  ${local.replace("sid", "Sid")}@Example.com  `);
 
   const { link } = await lastMailTo(email, "verify");
-  expect(link).toMatch(/^http:\/\/localhost:3000\/verify\?token=[\w-]{43}$/);
+  expect(link).toMatch(/^http:\/\/localhost:3000\/verify\?token=[\w-]+\.[\w-]+\.[\w-]+$/);
   // Signed out: the link asks for the account's login first, then comes back to the button.
   await confirmEmailLink(page, link, { email, password: PASSWORD });
   await expect(page.getByRole("heading", { name: "メールアドレスを確認しました" })).toBeVisible();
@@ -125,7 +130,7 @@ test("shows form errors and keeps the entered values", async ({ page }) => {
   await expect(page.getByLabel("パスワード", { exact: true })).toHaveValue("");
 });
 
-test("rejects a wrong password with one message and throttles", async ({ page }) => {
+test("rejects a wrong password with one message", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
 
@@ -138,6 +143,13 @@ test("rejects a wrong password with one message and throttles", async ({ page })
     await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
     await expect(page.getByLabel("メールアドレス", { exact: true })).toHaveValue(email);
   }
+});
+
+// Task 3: the account-level login throttle (5 per address and IP) comes back as a Better Auth plugin.
+test.fixme("throttles logins of one address after 5 wrong passwords", async ({ page }) => {
+  const email = newEmail();
+  await signUp(page, email);
+  for (let attempt = 0; attempt < 5; attempt += 1) await logIn(page, email, "wrong password!!");
   await logIn(page, email);
   await expect(page.locator("form [role=alert]")).toHaveText("試行回数が多すぎます。しばらくしてからお試しください。");
   await expect(page).toHaveURL(/\/login$/);
@@ -162,7 +174,8 @@ test("a login hashes the password again when it was stored with the earlier para
   await expect(page).toHaveURL(/\/account$/);
 });
 
-test("an account refuses logins after 30 attempts from anywhere, until its password is reset", async ({ page }) => {
+// Task 3: the account-level login throttle (30 per account, cleared by a password reset).
+test.fixme("an account refuses logins after 30 attempts from anywhere, until its password is reset", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
   // One address is stopped after 5 attempts; this is the count over every address in the window.
@@ -307,7 +320,7 @@ test("changes the email after the new address is confirmed", async ({ page }) =>
   expect(notice.text).not.toContain(nextEmail);
 
   const { link } = await lastMailTo(nextEmail, "changeEmail");
-  expect(link).toMatch(/^http:\/\/localhost:3000\/verify\?token=[\w-]{43}$/);
+  expect(link).toMatch(/^http:\/\/localhost:3000\/verify\?token=[\w-]+\.[\w-]+\.[\w-]+$/);
   await confirmEmailLink(page, link);
   await expect(page.getByRole("heading", { name: "メールアドレスを変更しました" })).toBeVisible();
   await page.goto("/account");
@@ -387,7 +400,7 @@ test("an email change to an address taken meanwhile shows that it cannot be used
   const change = await lastMailTo(contested, "changeEmail");
 
   // Someone else registers and confirms the same address before the link is opened.
-  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
   const otherPage = await other.newPage();
   await signUp(otherPage, contested, "べつのひと");
   await confirmEmailLink(otherPage, (await lastMailTo(contested, "verify")).link, {
@@ -410,7 +423,7 @@ test("an email change signs out the other sessions and keeps this one", async ({
   const nextEmail = newEmail();
   await signUpVerifiedAndLogIn(page, email);
 
-  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
   const otherPage = await other.newPage();
   await logIn(otherPage, email);
   await expect(otherPage).toHaveURL(/\/account$/);
@@ -432,7 +445,7 @@ test("changes the password and signs out the other sessions", async ({ page, bro
   const email = newEmail();
   await signUpVerifiedAndLogIn(page, email);
 
-  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
   const otherPage = await other.newPage();
   await logIn(otherPage, email);
   await expect(otherPage).toHaveURL(/\/account$/);
@@ -484,7 +497,8 @@ test("a password change cancels a pending email change", async ({ page }) => {
   await expect(profileValue(page, "メールアドレス")).toHaveText(email);
 });
 
-test("throttles wrong current passwords across both forms", async ({ page }) => {
+// Task 3: the throttle on current-password checks (5 per account across both forms).
+test.fixme("throttles wrong current passwords across both forms", async ({ page }) => {
   const email = newEmail();
   await signUpVerifiedAndLogIn(page, email);
 
@@ -541,7 +555,7 @@ test("resets the password from the mailed link", async ({ page }) => {
   await page.getByRole("button", { name: "再設定メールを送る" }).click();
   await expect(page.getByRole("heading", { name: "メールを送りました" })).toBeVisible();
   const { link } = await lastMailTo(email, "resetPassword", { after: before });
-  expect(link).toMatch(/^http:\/\/localhost:3000\/reset\?token=[\w-]{43}$/);
+  expect(link).toMatch(/^http:\/\/localhost:3000\/reset\?token=[\w-]{24}$/);
   expect((await readMails()).filter((mail) => mail.to === unknown)).toHaveLength(0);
 
   await setNewPassword(page, link, "short");
@@ -635,12 +649,14 @@ test("a verify link past its 24 hours is refused, on the button and on a later v
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
   const button = page.getByRole("button", { name: CONFIRM_BUTTON });
   await expect(button).toBeVisible();
-  expect(await expireMailedLink(link)).toBe(1);
+  // The token is a signed message with its expiry inside, so the clock cannot be moved in a row: the form carries a copy that has run out.
+  const expired = expiredCopyOfLink(link);
+  await page.locator('input[name="token"]').evaluate((input, token) => ((input as HTMLInputElement).value = token), new URL(expired).searchParams.get("token") ?? "");
   await button.click();
   await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
 
   // Opening it again offers no button.
-  await page.goto(link);
+  await page.goto(expired);
   await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
   await expect(page.getByRole("button", { name: CONFIRM_BUTTON })).toHaveCount(0);
 

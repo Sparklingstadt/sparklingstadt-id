@@ -29,6 +29,8 @@ const oidcClients =
 
 // The mail helpers (e2e/helpers/mail-log.ts) read the same file the server writes.
 process.env.MAIL_LOG = mailLog;
+// The server signs its mail links with this secret; tests that need an expired link sign one themselves.
+process.env.BETTER_AUTH_SECRET ??= "e2e-better-auth-secret-0123456789abcdef";
 // Tests sign their own tokens (an expired access token cannot be waited for), so the workers get the server's key.
 process.env.OIDC_SIGNING_KEY ??= generateSigningJwk();
 
@@ -49,7 +51,7 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       DATABASE_URL: databaseUrl,
-      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "e2e-better-auth-secret-0123456789abcdef",
+      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
       ID_ISSUER: "http://localhost:3000",
       MAIL_LOG: mailLog,
       OIDC_CLIENTS: oidcClients,

@@ -28,25 +28,43 @@ export function expireAuthCode(code: string): Promise<number> {
   return run(`update auth_codes set expires_at = ${ONE_SECOND_AGO} where code_hash = $1`, [hashToken(code)]);
 }
 
-/** Puts the token of a mailed link (`…?token=…`) past its lifetime. Returns the number of rows changed. */
+/**
+ * Puts the token of a mailed link (`…?token=…`) past its lifetime. Returns the number of rows changed.
+ * Reset links and email change links are rows; a verify link is a signed token with its expiry inside
+ * (see expiredCopyOfLink in verify.ts), so it changes nothing here.
+ */
 export function expireMailedLink(link: string): Promise<number> {
   const token = new URL(link).searchParams.get("token") ?? "";
-  return run(`update email_tokens set expires_at = ${ONE_SECOND_AGO} where token_hash = $1`, [hashToken(token)]);
+  return run(
+    `update ba_verifications set expires_at = ${ONE_SECOND_AGO}
+     where identifier = $1 or (identifier like 'change-email:%' and value = $2)`,
+    [`reset-password:${token}`, hashToken(token)],
+  );
 }
 
-/** Deletes an account (its sessions, codes and mail tokens cascade). Returns the number of rows deleted. */
+/** Deletes an account (its sessions and passwords cascade). Returns the number of rows deleted. */
 export function deleteUser(email: string): Promise<number> {
-  return run("delete from users where email = $1", [email]);
+  return run("delete from ba_users where email = $1", [email]);
 }
 
 /** The stored password hash of an account. */
 export async function passwordHashOf(email: string): Promise<string> {
-  return (await query("select password_hash from users where email = $1", [email])).rows[0].password_hash;
+  return (
+    await query(
+      `select a.password from ba_accounts a join ba_users u on u.id = a.user_id
+       where u.email = $1 and a.provider_id = 'credential'`,
+      [email],
+    )
+  ).rows[0].password;
 }
 
 /** Replaces the stored password hash of an account. Returns the number of rows changed (1 when found). */
 export function setPasswordHash(email: string, hash: string): Promise<number> {
-  return run("update users set password_hash = $2 where email = $1", [email, hash]);
+  return run(
+    `update ba_accounts set password = $2
+     where provider_id = 'credential' and user_id = (select id from ba_users where email = $1)`,
+    [email, hash],
+  );
 }
 
 /** Sets a throttle counter as if `count` attempts had just been made in a window that starts now. */
