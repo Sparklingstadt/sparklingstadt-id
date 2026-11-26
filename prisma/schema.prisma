@@ -105,6 +105,7 @@ model User {
   oauthRefreshTokens OauthRefreshToken[]
   oauthAccessTokens  OauthAccessToken[]
   oauthConsents      OauthConsent[]
+  passkeys           Passkey[]
 
   @@map("ba_users")
 }
@@ -358,4 +359,24 @@ model OauthClientAssertion {
   expiresAt DateTime @map("expires_at")
 
   @@map("ba_oauth_client_assertions")
+}
+
+// The passkey plugin's table: a passkey belongs to a signed-in user and is named, listed and deleted on /account.
+model Passkey {
+  id           String    @id
+  name         String?
+  publicKey    String    @map("public_key")
+  userId       String    @map("user_id")
+  credentialID String    @unique @map("credential_id")
+  counter      Int
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  transports   String?
+  createdAt    DateTime? @map("created_at")
+  aaguid       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ba_passkeys")
 }

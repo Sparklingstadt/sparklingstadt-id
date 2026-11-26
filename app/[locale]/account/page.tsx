@@ -11,6 +11,7 @@ import { IdShell } from "../_components/id-shell";
 import { idMetadata } from "../_components/id-metadata";
 import { PasswordForm } from "../_components/password-form";
 import { logOutAction } from "../actions";
+import { PasskeySection } from "./passkey-section";
 import { ResendForm } from "./resend-form";
 
 export async function generateMetadata({ params }: PageProps<"/[locale]/account">): Promise<Metadata> {
@@ -74,6 +75,20 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           hint: t("Fields.passwordHint"),
           submit: t("Account.changePassword"),
           pending: t("Account.pending"),
+        }}
+      />
+      <PasskeySection
+        labels={{
+          heading: t("Account.passkeysHeading"),
+          lead: t("Account.passkeysLead"),
+          name: t("Account.passkeyName"),
+          namePlaceholder: t("Account.passkeyNamePlaceholder"),
+          add: t("Account.passkeyAdd"),
+          pending: t("Account.pending"),
+          empty: t("Account.passkeysEmpty"),
+          delete: t("Account.passkeyDelete"),
+          failed: t("Account.passkeyFailed"),
+          unnamed: t("Account.passkeyUnnamed"),
         }}
       />
       <form className="id-section" action={logOutAction}>

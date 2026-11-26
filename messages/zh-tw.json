@@ -50,7 +50,10 @@
       "signupLink": "註冊",
       "forgotLink": "忘記密碼？",
       "passwordReset": "密碼已重設。請使用新密碼登入。",
-      "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。"
+      "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。",
+      "passkey": "使用通行金鑰（指紋）登入",
+      "passkeyPending": "確認中…",
+      "passkeyFailed": "無法使用通行金鑰登入。請使用電子郵件和密碼登入，或再試一次。"
     },
     "Account": {
       "heading": "我的帳戶",
@@ -76,7 +79,16 @@
       "newPassword": "新密碼",
       "changePassword": "變更密碼",
       "passwordChanged": "密碼已變更。其他裝置已登出。",
-      "pending": "傳送中…"
+      "pending": "傳送中…",
+      "passkeysHeading": "通行金鑰",
+      "passkeysLead": "可以用指紋、臉部或螢幕鎖登入。通行金鑰儲存在此裝置或密碼管理器中，可新增任意多個。",
+      "passkeyName": "通行金鑰的名稱",
+      "passkeyNamePlaceholder": "例如：iPhone 的指紋",
+      "passkeyAdd": "新增通行金鑰",
+      "passkeysEmpty": "還沒有通行金鑰。",
+      "passkeyDelete": "刪除",
+      "passkeyFailed": "通行金鑰操作失敗，請重試。",
+      "passkeyUnnamed": "未命名的通行金鑰"
     },
     "Verify": {
       "verifiedHeading": "電子郵件地址已確認",

@@ -24,7 +24,7 @@ export function LogInForm({ redirectTo, labels }: { redirectTo: string; labels: 
     <form className="id-form" action={action}>
       <div className="id-field">
         <label htmlFor="email">{labels.email}</label>
-        <input id="email" name="email" type="email" autoComplete="username" required
+        <input id="email" name="email" type="email" autoComplete="username webauthn" required
           defaultValue={state?.fields?.email} />
       </div>
       <div className="id-field">

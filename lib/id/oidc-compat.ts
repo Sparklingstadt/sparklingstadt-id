@@ -305,8 +305,8 @@ export function oidcCompat() {
         },
         {
           // Signing in again over a session (prompt=login) replaces it rather than leaving its row behind: a copy of
-          // the old cookie must not stay signed in.
-          matcher: (ctx) => (ctx.path ?? "").startsWith("/sign-in/"),
+          // the old cookie must not stay signed in. A passkey sign-in is the same (its endpoint is not under /sign-in/).
+          matcher: (ctx) => (ctx.path ?? "").startsWith("/sign-in/") || ctx.path === "/passkey/verify-authentication",
           handler: createAuthMiddleware(async (ctx) => {
             const created = ctx.context.newSession;
             if (!created) return;

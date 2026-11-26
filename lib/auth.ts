@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { oauthProvider } from "@better-auth/oauth-provider";
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
@@ -132,6 +133,14 @@ export const auth = betterAuth({
         claims_supported: ["sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "email", "email_verified", "name"],
         token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
       },
+    }),
+    // Passkeys are registered only while signed in (the plugin's default), from /account. A passkey is the user's
+    // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code.
+    passkey({
+      rpID: new URL(baseURL).hostname,
+      rpName: "Sparklingstadt ID",
+      origin: baseURL,
+      authenticatorSelection: { residentKey: "required", userVerification: "required" },
     }),
     // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
     nextCookies(),

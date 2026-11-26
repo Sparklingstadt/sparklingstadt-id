@@ -50,7 +50,10 @@
       "signupLink": "新規登録",
       "forgotLink": "パスワードを忘れた場合",
       "passwordReset": "パスワードを再設定しました。新しいパスワードでログインしてください。",
-      "confirmFirst": "メールアドレスを確認するには、そのSparklingstadt IDでログインしてください。"
+      "confirmFirst": "メールアドレスを確認するには、そのSparklingstadt IDでログインしてください。",
+      "passkey": "パスキー（指紋）でログイン",
+      "passkeyPending": "確認中…",
+      "passkeyFailed": "パスキーでログインできませんでした。メールアドレスとパスワードでログインするか、もう一度お試しください。"
     },
     "Account": {
       "heading": "マイページ",
@@ -76,7 +79,16 @@
       "newPassword": "新しいパスワード",
       "changePassword": "パスワードを変更",
       "passwordChanged": "パスワードを変更しました。ほかの端末ではログアウトしました。",
-      "pending": "送信中…"
+      "pending": "送信中…",
+      "passkeysHeading": "パスキー",
+      "passkeysLead": "指紋・顔・画面ロックでログインできます。パスキーはこの端末や、パスワードマネージャーに保存されます。いくつでも追加できます。",
+      "passkeyName": "パスキーの名前",
+      "passkeyNamePlaceholder": "例：iPhone の指紋",
+      "passkeyAdd": "パスキーを追加",
+      "passkeysEmpty": "パスキーはまだありません。",
+      "passkeyDelete": "削除",
+      "passkeyFailed": "パスキーの操作ができませんでした。もう一度お試しください。",
+      "passkeyUnnamed": "名前のないパスキー"
     },
     "Verify": {
       "verifiedHeading": "メールアドレスを確認しました",

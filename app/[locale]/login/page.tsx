@@ -9,6 +9,7 @@ import { safeNextPath } from "@/lib/id/validation";
 import { IdShell } from "../_components/id-shell";
 import { idMetadata } from "../_components/id-metadata";
 import { LogInForm } from "./login-form";
+import { PasskeyButton } from "./passkey-button";
 
 export async function generateMetadata({ params }: PageProps<"/[locale]/login">): Promise<Metadata> {
   const { locale } = await params;
@@ -42,6 +43,10 @@ export default async function LogInPage({ params, searchParams }: PageProps<"/[l
           invalidCredentials: t("Errors.invalidCredentials"),
           throttled: t("Errors.throttled"),
         }}
+      />
+      <PasskeyButton
+        redirectTo={target}
+        labels={{ label: t("Login.passkey"), pending: t("Login.passkeyPending"), failed: t("Login.passkeyFailed") }}
       />
       <p className="id-links">
         <a href={getPathname({ href: "/forgot", locale })}>{t("Login.forgotLink")}</a>
