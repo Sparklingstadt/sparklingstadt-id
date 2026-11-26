@@ -10,15 +10,13 @@ export function LogInForm({ redirectTo, labels }: { redirectTo: string; labels: 
   // A form action (not an onSubmit handler) so that a submit before hydration is replayed, never sent as a plain GET.
   const [state, action, pending] = useActionState(async (_previous: FormState, formData: FormData): Promise<FormState> => {
     const email = String(formData.get("email") ?? "").trim();
-    const { data, error } = await authClient.signIn.email({ email, password: String(formData.get("password") ?? "") });
+    const { error } = await authClient.signIn.email({ email, password: String(formData.get("password") ?? "") });
     if (error) {
       // One message for an unknown address, a wrong password and a malformed address.
       return { error: error.status === 429 ? labels.throttled : labels.invalidCredentials, fields: { email } };
     }
-    // Signed in from the provider's own login redirect (a signed oauth_query): the plugin answers with where the
-    // authorization continues. Otherwise go to `next`, which for a client is the authorize URL itself.
-    const next = data && data.redirect && typeof data.url === "string" ? data.url : redirectTo;
-    window.location.assign(next);
+    // For a client, `next` is the authorize URL itself, which then issues the code.
+    window.location.assign(redirectTo);
     return { fields: { email } };
   }, undefined);
 

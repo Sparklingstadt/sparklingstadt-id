@@ -107,8 +107,19 @@ function toSearchParams(source: Record<string, unknown> | undefined): URLSearchP
   return params;
 }
 
-/** Endpoints the provider does not offer (spec 4.2 使わない機能): no options turns them off. */
-const BLOCKED_PATHS = new Set(["/oauth2/introspect", "/oauth2/revoke", "/oauth2/register", "/token"]);
+/**
+ * Endpoints the provider does not offer (spec 4.2 使わない機能; no option turns them off), and the plugin's
+ * continuation endpoints. Those resume an authorization from a signed oauth_query that is bound to no session, which
+ * would issue a code past the checks below. Here a login always continues through `next` back to /oauth/authorize.
+ */
+const BLOCKED_PATHS = new Set([
+  "/oauth2/introspect",
+  "/oauth2/revoke",
+  "/oauth2/register",
+  "/oauth2/consent",
+  "/oauth2/continue",
+  "/token",
+]);
 
 type RegisteredClient = { redirectUris?: string[] | null; disabled?: boolean | null };
 
@@ -121,6 +132,17 @@ export function oidcCompat() {
           matcher: (ctx) => BLOCKED_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async () => {
             throw new APIError("NOT_FOUND");
+          }),
+        },
+        {
+          // The plugin resumes an authorization after any sign-in whose body carries a signed oauth_query. Nothing
+          // here sends one, so a request that does is refused before the plugin reads it.
+          matcher: (ctx) => {
+            const body = ctx.body as Record<string, unknown> | undefined;
+            return typeof body === "object" && body !== null && "oauth_query" in body;
+          },
+          handler: createAuthMiddleware(async () => {
+            throw new APIError("BAD_REQUEST", { error: "invalid_request" });
           }),
         },
         {
@@ -193,6 +215,15 @@ export function oidcCompat() {
             if (!session.user.emailVerified) {
               if (prompt.none) throw backToClient("interaction_required");
               throw ctx.redirect(`${localizedPath(locale, "/account")}?verify=required`);
+            }
+
+            // 6. The plugin issues the code. It sees only what was checked here: prompt values other than none
+            //    (consent, create, select_account; ignored as before) and max_age are taken out, so it never sends
+            //    the user to a page of its own with a signed query.
+            if (source) {
+              if (prompt.none) source.prompt = "none";
+              else delete source.prompt;
+              delete source.max_age;
             }
           }),
         },

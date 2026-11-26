@@ -97,6 +97,8 @@ export const auth = betterAuth({
   },
   plugins: [
     accountThrottle(),
+    // Before oauthProvider, so that its hooks run first (lib/id/oidc-compat.ts).
+    oidcCompat(),
     // The ID token's signing key (ES256). The issuer is ID_ISSUER, the same value as baseURL.
     jwt({
       jwks: { keyPairConfig: { alg: "ES256" } },
@@ -105,8 +107,8 @@ export const auth = betterAuth({
       disableSettingJwtHeader: true,
     }),
     oauthProvider({
-      // The login page takes the authorize URL in `next` (lib/id/oidc-compat.ts sends the user there). No client is
-      // shown a consent screen (each is registered with skipConsent), so the consent page is never used.
+      // Never used: lib/id/oidc-compat.ts sends the user to the login page with the authorize URL in `next`, takes
+      // out the prompt values that lead to the plugin's own pages, and blocks its signed-query continuations.
       loginPage: "/login",
       consentPage: "/login",
       scopes: ["openid", "email", "profile"],
@@ -131,7 +133,6 @@ export const auth = betterAuth({
         token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
       },
     }),
-    oidcCompat(),
     // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
     nextCookies(),
   ],

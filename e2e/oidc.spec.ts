@@ -748,3 +748,35 @@ test("logging in again with prompt=login ends the session it replaces", async ({
   expect(location.searchParams.get("error")).toBe("login_required");
   await stolen.close();
 });
+
+for (const prompt of ["consent", "create", "select_account"]) {
+  test(`authorize with prompt=${prompt} issues a code to a signed-in user without another page`, async ({ page }) => {
+    await signedInUser(page);
+    const state = `state-${randomUUID()}`;
+    const location = expectClientRedirect(
+      await page.request.get(authorizePath({ prompt, state }), { maxRedirects: 0 }),
+      state,
+    );
+    expect(location.searchParams.get("code")).toMatch(CODE);
+  });
+}
+
+for (const path of ["/api/auth/oauth2/consent", "/api/auth/oauth2/continue"]) {
+  test(`the plugin's continuation ${path} is not offered`, async ({ request }) => {
+    const response = await request.post(path, {
+      headers: { Origin: ISSUER },
+      data: { accept: true, created: true, oauth_query: "client_id=e2e-client" },
+    });
+    expect(response.status()).toBe(404);
+  });
+}
+
+test("a sign-in carrying an oauth_query is refused and signs nobody in", async ({ page, request }) => {
+  const email = await signedInUser(page);
+  const response = await request.post("/api/auth/sign-in/email", {
+    headers: { Origin: ISSUER },
+    data: { email, password: PASSWORD, oauth_query: "client_id=e2e-client&sig=x&exp=9999999999" },
+  });
+  expect(response.status()).toBe(400);
+  expect(response.headers()["set-cookie"] ?? "").not.toContain("session_token");
+});
