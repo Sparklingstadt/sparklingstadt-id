@@ -690,3 +690,49 @@ test("a reset link past its hour is refused and leaves the password as it was", 
   await logIn(page, email);
   await expect(page).toHaveURL(/\/account$/);
 });
+
+test("a reset link mailed before an email change is refused after the move", async ({ page }) => {
+  const email = newEmail();
+  const nextEmail = newEmail();
+  await signUpVerifiedAndLogIn(page, email);
+
+  const before = (await readMails()).length;
+  const other = await page.context().browser()!.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
+  const otherPage = await other.newPage();
+  await requestReset(otherPage, email);
+  const reset = await lastMailTo(email, "resetPassword", { after: before });
+  await other.close();
+
+  await requestEmailChange(page, nextEmail);
+  await confirmEmailLink(page, (await lastMailTo(nextEmail, "changeEmail")).link);
+  await expect(page.getByRole("heading", { name: "メールアドレスを変更しました" })).toBeVisible();
+
+  await page.goto(reset.link);
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+  await expect(page.getByLabel("新しいパスワード")).toHaveCount(0);
+});
+
+test("an email change link is refused after the move and for another account", async ({ page, browser }) => {
+  const email = newEmail();
+  const nextEmail = newEmail();
+  await signUpVerifiedAndLogIn(page, email);
+  await requestEmailChange(page, nextEmail);
+  const { link } = await lastMailTo(nextEmail, "changeEmail");
+
+  // Another signed-in account cannot use it, and that leaves it usable.
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
+  const otherPage = await other.newPage();
+  await signUpVerifiedAndLogIn(otherPage, newEmail());
+  await otherPage.goto(link);
+  await expect(otherPage.getByRole("heading", { name: "別のSparklingstadt IDあてのリンクです" })).toBeVisible();
+  await expect(otherPage.getByRole("button", { name: CONFIRM_BUTTON })).toHaveCount(0);
+  await other.close();
+
+  await confirmEmailLink(page, link);
+  await expect(page.getByRole("heading", { name: "メールアドレスを変更しました" })).toBeVisible();
+
+  // The address has moved: the same link means nothing now.
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "リンクが無効か期限切れです" })).toBeVisible();
+  await expect(page.getByRole("button", { name: CONFIRM_BUTTON })).toHaveCount(0);
+});

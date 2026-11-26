@@ -3,7 +3,8 @@ import { isAPIError } from "better-auth/api";
 import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
-import { cancelPendingLinks, forgetChangeEmailLink, peekEmailLink, type EmailLinkPurpose } from "./email-links.ts";
+import { cancelPendingLinks, forgetChangeEmailLink, peekEmailLink } from "./email-links.ts";
+import type { EmailLinkPurpose } from "./link-token.ts";
 import { sendEmailChangeRequested } from "./auth-mail.ts";
 import { checkPassword, normalizeDisplayName, normalizeEmail, ValidationError } from "./validation.ts";
 
@@ -153,7 +154,8 @@ async function confirmEmailChange(
   }
   // A session opened by someone else must not outlive the move to a new address.
   await getPrisma().session.deleteMany({ where: { userId: link.userId, id: { not: sessionId } } });
-  await forgetChangeEmailLink(link.userId);
+  // A reset link mailed to the old address must not outlive the move either.
+  await cancelPendingLinks(link.userId);
   return { ok: true, purpose: "change_email" };
 }
 

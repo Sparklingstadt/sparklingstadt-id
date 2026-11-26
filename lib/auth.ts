@@ -5,7 +5,8 @@ import { after } from "next/server";
 import { mailHooks } from "@/lib/id/auth-mail";
 import { cancelPendingLinks } from "@/lib/id/email-links";
 import { authOptionsFrom } from "@/lib/id/auth-options";
-import { hashPassword, needsRehash, verifyPassword } from "@/lib/password";
+import { credentialDeps, verifyCredential } from "@/lib/id/credential";
+import { hashPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 
 // `next build` imports every route module without the runtime environment, so it gets placeholders there
@@ -46,14 +47,14 @@ export const auth = betterAuth({
     // The same scrypt format as the legacy accounts, so their hashes keep working.
     password: {
       hash: hashPassword,
-      verify: async ({ hash, password }) => {
-        const valid = await verifyPassword(password, hash);
-        if (valid && needsRehash(hash)) {
-          // The password is at hand: store it with the current parameters (unless it was changed meanwhile).
-          await getPrisma().account.updateMany({ where: { password: hash }, data: { password: await hashPassword(password) } });
-        }
-        return valid;
-      },
+      verify: ({ hash, password }) =>
+        verifyCredential(
+          hash,
+          password,
+          credentialDeps(async (old, next) => {
+            await getPrisma().account.updateMany({ where: { password: old }, data: { password: next } });
+          }),
+        ),
     },
     revokeSessionsOnPasswordReset: true,
     // Signing up does not sign in: the sign-up screen is the same for a new and a registered address.
