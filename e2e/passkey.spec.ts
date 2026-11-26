@@ -189,6 +189,19 @@ test("adding a passkey with an old session asks for a fresh login and then succe
   await addPasskey(page, "新しいセッション");
 });
 
+test("another 403 while adding a passkey shows the failure message, not the login page", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  await signedInUser(page);
+  await page.route("**/passkey/generate-register-options*", (route) =>
+    route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ code: "INVALID_ORIGIN", message: "Invalid origin" }) }),
+  );
+  await page.goto("/account");
+  await page.getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "パスキーの操作ができませんでした" })).toBeVisible();
+  await expect(page).toHaveURL(/\/account$/);
+});
+
 test.fixme("passkey login does not ask for the 2FA code", async () => {
   // Enabled after Task 7 (two-factor): with 2FA on, a passkey sign-in goes straight to the account page.
 });

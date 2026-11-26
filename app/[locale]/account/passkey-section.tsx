@@ -19,7 +19,7 @@ export function PasskeySection({ labels, freshLoginHref }: { labels: Labels; fre
     const { error } = await authClient.passkey.addPasskey({ name: name.trim() || undefined });
     setPending(false);
     // Adding a credential needs a sign-in from the last 24 hours (Better Auth's freshAge): ask for one, then come back.
-    if (error && error.status === 403) {
+    if (error && "code" in error && error.code === "SESSION_NOT_FRESH") {
       window.location.assign(freshLoginHref);
       return;
     }
