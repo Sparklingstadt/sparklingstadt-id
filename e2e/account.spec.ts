@@ -145,8 +145,7 @@ test("rejects a wrong password with one message", async ({ page }) => {
   }
 });
 
-// Task 3: the account-level login throttle (5 per address and IP) comes back as a Better Auth plugin.
-test.fixme("throttles logins of one address after 5 wrong passwords", async ({ page }) => {
+test("throttles logins of one address after 5 wrong passwords", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
   for (let attempt = 0; attempt < 5; attempt += 1) await logIn(page, email, "wrong password!!");
@@ -174,8 +173,7 @@ test("a login hashes the password again when it was stored with the earlier para
   await expect(page).toHaveURL(/\/account$/);
 });
 
-// Task 3: the account-level login throttle (30 per account, cleared by a password reset).
-test.fixme("an account refuses logins after 30 attempts from anywhere, until its password is reset", async ({ page }) => {
+test("an account refuses logins after 30 attempts from anywhere, until its password is reset", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
   // One address is stopped after 5 attempts; this is the count over every address in the window.
@@ -497,8 +495,7 @@ test("a password change cancels a pending email change", async ({ page }) => {
   await expect(profileValue(page, "メールアドレス")).toHaveText(email);
 });
 
-// Task 3: the throttle on current-password checks (5 per account across both forms).
-test.fixme("throttles wrong current passwords across both forms", async ({ page }) => {
+test("throttles wrong current passwords across both forms", async ({ page }) => {
   const email = newEmail();
   await signUpVerifiedAndLogIn(page, email);
 

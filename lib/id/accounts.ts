@@ -15,6 +15,11 @@ function failedWith(error: unknown, ...codes: string[]): boolean {
   return isAPIError(error) && typeof error.body?.code === "string" && codes.includes(error.body.code);
 }
 
+/** True when a throttle of accountThrottle (lib/id/account-throttle.ts) stopped the request. */
+export function isThrottled(error: unknown): boolean {
+  return failedWith(error, "THROTTLED");
+}
+
 /** Throws ValidationError for bad input. Same result whether or not the address is taken (Better Auth mails the owner of a registered address). */
 export async function signUp(input: { email: string; displayName: string; password: string }): Promise<void> {
   const email = normalizeEmail(input.email);
@@ -100,7 +105,12 @@ export async function requestPasswordReset(email: string): Promise<void> {
     if (error instanceof ValidationError) return;
     throw error;
   }
-  await auth.api.requestPasswordReset({ body: { email: normalized }, headers: await headers() });
+  try {
+    await auth.api.requestPasswordReset({ body: { email: normalized }, headers: await headers() });
+  } catch (error) {
+    // Asking again and again is answered like any other request: nothing tells whether the address exists.
+    if (!isThrottled(error)) throw error;
+  }
 }
 
 /** Whether the reset page should offer the form (the action checks again). */

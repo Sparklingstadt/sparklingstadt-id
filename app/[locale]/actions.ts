@@ -10,6 +10,7 @@ import {
   changeDisplayName,
   changePassword,
   confirmEmail,
+  isThrottled,
   requestEmailChange,
   requestPasswordReset,
   resendVerification,
@@ -44,9 +45,10 @@ async function requireUser(locale: Locale) {
   return current.user;
 }
 
-/** The message key for a ValidationError; anything else is rethrown. */
+/** The message key for a ValidationError or a throttled request; anything else is rethrown. */
 function validationErrorKey(error: unknown) {
   if (error instanceof ValidationError) return `Errors.${error.code}` as "Errors.emailInvalid";
+  if (isThrottled(error)) return "Errors.throttled";
   throw error;
 }
 
@@ -95,6 +97,7 @@ export async function resendVerificationAction(_state: FormState, formData: Form
   try {
     result = await resendVerification(user.email);
   } catch (error) {
+    if (isThrottled(error)) return { error: t("Errors.throttled") };
     console.error("[id] failed to resend the verify mail:", error instanceof Error ? error.message : error);
     return { error: t("Errors.mailFailed") };
   }
