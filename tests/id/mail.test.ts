@@ -18,8 +18,11 @@ test("renderMail includes the link and a subject for every kind and locale", () 
   }
 });
 
-test("clientIp takes the first x-forwarded-for value", () => {
-  assert.equal(clientIp(new Headers({ "x-forwarded-for": " 1.2.3.4 , 5.6.7.8" })), "1.2.3.4");
+test("clientIp takes a single valid x-forwarded-for address and nothing else", () => {
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": " 1.2.3.4 " })), "1.2.3.4");
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" })), "unknown");
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": "not-an-ip" })), "unknown");
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4.5" })), "unknown");
   assert.equal(clientIp(new Headers({ "x-forwarded-for": "9.9.9.9" })), "9.9.9.9");
   assert.equal(clientIp(new Headers()), "unknown");
   assert.equal(clientIp(new Headers({ "x-forwarded-for": "" })), "unknown");

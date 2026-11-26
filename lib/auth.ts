@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { after } from "next/server";
 import { accountThrottle } from "@/lib/id/account-throttle";
 import { mailHooks } from "@/lib/id/auth-mail";
+import { IP_ADDRESS_OPTIONS } from "@/lib/id/client-ip";
 import { cancelPendingLinks } from "@/lib/id/email-links";
 import { authOptionsFrom } from "@/lib/id/auth-options";
 import { credentialDeps, verifyCredential } from "@/lib/id/credential";
@@ -39,9 +40,8 @@ export const auth = betterAuth({
   },
   // Mail goes out after the response, so a known address does not answer more slowly than an unknown one.
   advanced: {
-    // Better Auth's own per-IP limit reads the same header as clientIp (lib/id/client-ip.ts): Vercel sets
-    // x-forwarded-for to the single client address and drops what the client sent.
-    ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
+    // Better Auth's own per-IP limit and clientIp (the throttles) read the same header by the same rule; see lib/id/client-ip.ts.
+    ipAddress: IP_ADDRESS_OPTIONS,
     backgroundTasks: { handler: (task) => after(task) },
   },
   emailAndPassword: {
