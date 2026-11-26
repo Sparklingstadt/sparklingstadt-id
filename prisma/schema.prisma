@@ -15,7 +15,7 @@ enum EmailTokenPurpose {
   @@map("email_token_purpose")
 }
 
-model User {
+model LegacyUser {
   id              String    @id @default(cuid())
   email           String    @unique
   displayName     String    @map("display_name")
@@ -25,14 +25,14 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  sessions    Session[]
+  sessions    LegacySession[]
   emailTokens EmailToken[]
   authCodes   AuthCode[]
 
   @@map("users")
 }
 
-model Session {
+model LegacySession {
   id             String   @id @default(cuid())
   userId         String   @map("user_id")
   tokenHash      String   @unique @map("token_hash")
@@ -40,7 +40,7 @@ model Session {
   expiresAt      DateTime @map("expires_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
@@ -56,7 +56,7 @@ model EmailToken {
   usedAt    DateTime?             @map("used_at")
   createdAt DateTime              @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("email_tokens")
@@ -75,7 +75,7 @@ model AuthCode {
   usedAt        DateTime? @map("used_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("auth_codes")
 }
@@ -86,4 +86,80 @@ model Throttle {
   windowStart DateTime @map("window_start")
 
   @@map("throttles")
+}
+
+// Better Auth's core tables. Model names are the ones Better Auth looks up (user, session, ...);
+// table names keep the ba_ prefix so they stay apart from the legacy tables until those are dropped.
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  sessions Session[]
+  accounts Account[]
+
+  @@map("ba_users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ba_sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ba_accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("ba_verifications")
+}
+
+// Better Auth's rate limiter (rateLimit.storage: "database"); lastRequest is epoch milliseconds.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt @map("last_request")
+
+  @@map("ba_rate_limits")
 }

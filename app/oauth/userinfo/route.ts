@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   }
 
   // Always the current values, not what the token was issued with.
-  const user = await getPrisma().user.findUnique({ where: { id: claims.sub } });
+  const user = await getPrisma().legacyUser.findUnique({ where: { id: claims.sub } });
   if (!user || !user.emailVerifiedAt) return invalidToken();
   return Response.json(
     { sub: user.id, email: user.email, email_verified: true, name: user.displayName },

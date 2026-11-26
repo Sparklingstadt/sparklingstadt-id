@@ -64,9 +64,9 @@ export async function signUp(input: {
   const passwordHash = await hashPassword(password);
   const token = newToken();
   let created = false;
-  if (!(await getPrisma().user.findUnique({ where: { email }, select: { id: true } }))) {
+  if (!(await getPrisma().legacyUser.findUnique({ where: { email }, select: { id: true } }))) {
     try {
-      await getPrisma().user.create({
+      await getPrisma().legacyUser.create({
         data: { email, displayName, passwordHash, emailTokens: { create: verifyTokenData(email, token) } },
       });
       created = true;
@@ -136,25 +136,25 @@ export async function confirmEmailToken(token: string, userId: string, sessionId
 
       if (row.purpose === "change_email") {
         // `row.email` is the new address. Taken meanwhile → P2002 rolls the whole transaction back.
-        await tx.user.update({ where: { id: row.userId }, data: { email: row.email, emailVerifiedAt: now } });
+        await tx.legacyUser.update({ where: { id: row.userId }, data: { email: row.email, emailVerifiedAt: now } });
         // Links to other addresses asked for earlier must not move the account again.
         await tx.emailToken.updateMany({
           where: { userId: row.userId, purpose: "change_email", usedAt: null },
           data: { usedAt: now },
         });
         // A session opened by someone else must not outlive the move to a new address.
-        await tx.session.deleteMany({ where: { userId: row.userId, id: { not: sessionId } } });
+        await tx.legacySession.deleteMany({ where: { userId: row.userId, id: { not: sessionId } } });
         return { ok: true, purpose: "change_email" } as const;
       }
 
-      const user = await tx.user.findUnique({
+      const user = await tx.legacyUser.findUnique({
         where: { id: row.userId },
         select: { email: true, emailVerifiedAt: true },
       });
       // The address changed after this mail was sent: it no longer proves anything.
       if (!user || user.email !== row.email) return invalid;
       if (!user.emailVerifiedAt) {
-        await tx.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: now } });
+        await tx.legacyUser.update({ where: { id: row.userId }, data: { emailVerifiedAt: now } });
       }
       return { ok: true, purpose: "verify" } as const;
     });
@@ -193,7 +193,7 @@ export async function logIn(input: { email: string; password: string; ip: string
   if (!ipAllowed || !mailAllowed || !accountAllowed) return { ok: false, reason: "throttled" };
 
   const user = email
-    ? await getPrisma().user.findUnique({
+    ? await getPrisma().legacyUser.findUnique({
         where: { email },
         select: { id: true, passwordHash: true, sessionVersion: true },
       })
@@ -207,7 +207,7 @@ export async function logIn(input: { email: string; password: string; ip: string
 
   if (outdated) {
     // The password is at hand: store it with the current parameters (unless it was changed meanwhile).
-    await getPrisma().user.updateMany({
+    await getPrisma().legacyUser.updateMany({
       where: { id: user.id, passwordHash: user.passwordHash },
       data: { passwordHash: await hashPassword(input.password) },
     });
@@ -222,7 +222,7 @@ export async function resendVerification(
   locale: Locale,
   ip: string,
 ): Promise<"sent" | "throttled" | "alreadyVerified"> {
-  const user = await getPrisma().user.findUniqueOrThrow({
+  const user = await getPrisma().legacyUser.findUniqueOrThrow({
     where: { id: userId },
     select: { email: true, emailVerifiedAt: true },
   });
@@ -238,7 +238,7 @@ export async function resendVerification(
 /** Throws ValidationError for a bad name. Returns the stored (trimmed) name. */
 export async function changeDisplayName(userId: string, value: string): Promise<string> {
   const displayName = normalizeDisplayName(value);
-  await getPrisma().user.update({ where: { id: userId }, data: { displayName } });
+  await getPrisma().legacyUser.update({ where: { id: userId }, data: { displayName } });
   return displayName;
 }
 
@@ -249,7 +249,7 @@ export async function changeDisplayName(userId: string, value: string): Promise<
 async function checkCurrentPassword(userId: string, current: string): Promise<"ok" | "wrongPassword" | "throttled"> {
   const key = `pwcheck:user:${userId}`;
   if (!(await consumeThrottle(key, 5))) return "throttled";
-  const user = await getPrisma().user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+  const user = await getPrisma().legacyUser.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
   if (!(await verifyPassword(current, user.passwordHash))) return "wrongPassword";
   await resetThrottle(key);
   return "ok";
@@ -270,7 +270,7 @@ export async function requestEmailChange(
   ip: string,
 ): Promise<"sent" | "throttled" | "wrongPassword"> {
   const email = normalizeEmail(newEmail);
-  const user = await getPrisma().user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+  const user = await getPrisma().legacyUser.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
   if (user.email === email) throw new ValidationError("email", "sameEmail");
   const checked = await checkCurrentPassword(userId, currentPassword);
   if (checked !== "ok") return checked;
@@ -313,7 +313,7 @@ export async function changePassword(userId: string, current: string, next: stri
 
   const passwordHash = await hashPassword(password);
   const sessionVersion = await getPrisma().$transaction(async (tx) => {
-    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+    await tx.legacyUser.update({ where: { id: userId }, data: { passwordHash } });
     // Links requested from a stolen session must not outlive it.
     await tx.emailToken.updateMany({
       where: { userId, usedAt: null, purpose: { in: ["change_email", "reset_password"] } },
@@ -339,7 +339,7 @@ export async function requestPasswordReset(email: string, locale: Locale, ip: st
     throw error;
   }
 
-  const user = await getPrisma().user.findUnique({ where: { email: normalized }, select: { id: true } });
+  const user = await getPrisma().legacyUser.findUnique({ where: { email: normalized }, select: { id: true } });
   if (!user) return "sent";
   const token = newToken();
   await getPrisma().emailToken.create({
@@ -399,7 +399,7 @@ export async function resetPassword(token: string, password: string): Promise<Re
     });
     if (claimed.count !== 1) return invalid;
 
-    await tx.user.update({
+    await tx.legacyUser.update({
       where: { id: row.userId },
       data: { passwordHash, ...(row.user.emailVerifiedAt ? {} : { emailVerifiedAt: now }) },
     });

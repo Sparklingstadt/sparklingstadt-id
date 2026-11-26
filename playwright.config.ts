@@ -49,6 +49,7 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       DATABASE_URL: databaseUrl,
+      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "e2e-better-auth-secret-0123456789abcdef",
       ID_ISSUER: "http://localhost:3000",
       MAIL_LOG: mailLog,
       OIDC_CLIENTS: oidcClients,

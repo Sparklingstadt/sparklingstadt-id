@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import type { Session, User, Prisma } from "@/generated/prisma/client";
+import type { LegacySession as Session, LegacyUser as User, Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { sessionCookie } from "./session-cookie.ts";
 import { hashToken, newToken } from "./tokens.ts";
@@ -16,7 +16,7 @@ async function writeSessionCookie(value: string, maxAge: number): Promise<void> 
 /** Call only from a Server Action or Route Handler (writes a cookie). */
 export async function createSession(userId: string, sessionVersion: number): Promise<void> {
   const token = newToken();
-  await getPrisma().session.create({
+  await getPrisma().legacySession.create({
     data: {
       userId,
       tokenHash: hashToken(token),
@@ -31,7 +31,7 @@ export const getCurrentUser = cache(
   async (): Promise<{ user: User; session: Session } | null> => {
     const token = (await cookies()).get(sessionCookie(process.env).name)?.value;
     if (!token) return null;
-    const session = await getPrisma().session.findUnique({
+    const session = await getPrisma().legacySession.findUnique({
       where: { tokenHash: hashToken(token) },
       include: { user: true },
     });
@@ -46,7 +46,7 @@ export const getCurrentUser = cache(
 export async function destroySession(): Promise<void> {
   const token = (await cookies()).get(sessionCookie(process.env).name)?.value;
   if (token) {
-    await getPrisma().session.deleteMany({ where: { tokenHash: hashToken(token) } });
+    await getPrisma().legacySession.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
   // Written with the same attributes as when it was set: browsers ignore a `__Host-` cookie without Secure,
   // also one that only clears it.
@@ -56,11 +56,11 @@ export async function destroySession(): Promise<void> {
 /** Bumps `sessionVersion` and deletes every session of the user. Pass `tx` to join a transaction. */
 export async function revokeSessions(userId: string, tx?: Prisma.TransactionClient): Promise<number> {
   if (!tx) return getPrisma().$transaction((inner) => revokeSessions(userId, inner));
-  const user = await tx.user.update({
+  const user = await tx.legacyUser.update({
     where: { id: userId },
     data: { sessionVersion: { increment: 1 } },
     select: { sessionVersion: true },
   });
-  await tx.session.deleteMany({ where: { userId } });
+  await tx.legacySession.deleteMany({ where: { userId } });
   return user.sessionVersion;
 }

@@ -19,9 +19,12 @@
     "test:regression": "pnpm run lint && pnpm run test:unit && pnpm run build && pnpm run test:e2e"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "1.7.28",
+    "@better-auth/passkey": "1.7.28",
     "@next/env": "16.4.6",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "better-auth": "1.7.28",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.54.0",

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import type { User } from "@/generated/prisma/client";
+import type { LegacyUser as User } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { s256 } from "./pkce.ts";
 import { hashToken, newToken } from "./tokens.ts";
