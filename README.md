@@ -61,6 +61,12 @@ Sparklingstadt のサービス共通のログイン窓口です。OpenID Connect
 
    `redirect_uri` と `post_logout_redirect_uri` は、登録した値と完全に一致したときだけ使えます。
 
+3. `OIDC_CLIENTS` を DB（Better Auth の `oauthClient` の表、`ba_oauth_clients`）に取り込みます。サーバーはこの表を読みます。何度実行しても同じ結果になり、取り込んだクライアントのシークレットは変わりません。
+
+   ```sh
+   pnpm run oidc:import-clients
+   ```
+
 ## 署名鍵
 
 作り方：
@@ -82,6 +88,7 @@ pnpm run oidc:keygen
 
    ```sh
    pnpm run db:deploy
+   pnpm run oidc:import-clients
    ```
 
 5. 試行回数の制限は、クライアントの IP を `x-forwarded-for` から読みます（`lib/id/client-ip.ts`）。デプロイ先は Vercel だけを前提にしています。Vercel はこのヘッダーをクライアントの 1 つのアドレスで上書きするので信用できます。ほかの環境では、クライアントがヘッダーを書き換えられるため、アドレス 1 つだけの正しい値でなければ「不明」として数えます。
@@ -103,6 +110,7 @@ pnpm run oidc:keygen
 pnpm install
 docker compose up -d --wait          # Postgres 17（127.0.0.1:55432）
 pnpm run db:deploy
+pnpm run oidc:import-clients         # OIDC_CLIENTS を DB へ
 pnpm run dev
 ```
 

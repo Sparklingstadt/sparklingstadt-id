@@ -1,6 +1,9 @@
+import { timingSafeEqual } from "node:crypto";
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { jwt } from "better-auth/plugins/jwt";
 import { after } from "next/server";
 import { accountThrottle } from "@/lib/id/account-throttle";
 import { mailHooks } from "@/lib/id/auth-mail";
@@ -9,8 +12,17 @@ import { cancelPendingLinks } from "@/lib/id/email-links";
 import { authOptionsFrom } from "@/lib/id/auth-options";
 import { credentialDeps, verifyCredential } from "@/lib/id/credential";
 import { hashPassword } from "@/lib/password";
+import { oidcCompat } from "@/lib/id/oidc-compat";
+import { hashToken } from "@/lib/id/tokens";
 import { getPrisma } from "@/lib/prisma";
 import { resetThrottle } from "@/lib/id/throttle";
+
+/** A client secret is checked against its SHA-256 hex, the form OIDC_CLIENTS has always stored (lib/id/client-import.ts). */
+function verifyClientSecret(secret: string, storedHash: string): boolean {
+  const actual = Buffer.from(hashToken(secret), "utf8");
+  const expected = Buffer.from(storedHash, "utf8");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 // `next build` imports every route module without the runtime environment, so it gets placeholders there
 // (the database client connects only on its first query).
@@ -83,6 +95,44 @@ export const auth = betterAuth({
     // The per-IP tier for signing in (the browser calls it); the per-address and per-account limits are accountThrottle.
     customRules: { "/sign-in/email": { window: 60, max: 20 } },
   },
-  // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
-  plugins: [accountThrottle(), nextCookies()],
+  plugins: [
+    accountThrottle(),
+    // The ID token's signing key (ES256). The issuer is ID_ISSUER, the same value as baseURL.
+    jwt({
+      jwks: { keyPairConfig: { alg: "ES256" } },
+      jwt: { issuer: baseURL },
+      // The session JWT (/token and the set-auth-jwt header) is not offered: the keys sign ID tokens only.
+      disableSettingJwtHeader: true,
+    }),
+    oauthProvider({
+      // The login page takes the authorize URL in `next` (lib/id/oidc-compat.ts sends the user there). No client is
+      // shown a consent screen (each is registered with skipConsent), so the consent page is never used.
+      loginPage: "/login",
+      consentPage: "/login",
+      scopes: ["openid", "email", "profile"],
+      grantTypes: ["authorization_code"],
+      allowDynamicClientRegistration: false,
+      // Clients are registered only from OIDC_CLIENTS (lib/id/client-import.ts), never by a signed-in user.
+      clientPrivileges: () => false,
+      resourcePrivileges: () => false,
+      // The registered addresses are matched exactly; as before, a registered http address is allowed.
+      allowInsecureRedirectUri: () => true,
+      storeClientSecret: { hash: hashToken, verify: verifyClientSecret },
+      idTokenExpiresIn: 300,
+      accessTokenExpiresIn: 300,
+      codeExpiresIn: 300,
+      // The clients read email and name from the ID token (the plugin puts them in userinfo only).
+      customIdTokenClaims: ({ user, scopes }) => ({
+        ...(scopes.includes("email") ? { email: user.email, email_verified: user.emailVerified } : {}),
+        ...(scopes.includes("profile") ? { name: user.name } : {}),
+      }),
+      advertisedMetadata: {
+        claims_supported: ["sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "email", "email_verified", "name"],
+        token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
+      },
+    }),
+    oidcCompat(),
+    // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
+    nextCookies(),
+  ],
 });

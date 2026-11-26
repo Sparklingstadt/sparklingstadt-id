@@ -2,13 +2,8 @@ import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { lastMailTo, readMails } from "./helpers/mail-log";
 import { expireMailedLink, passwordHashOf, setPasswordHash, setThrottle } from "./helpers/db";
+import { testIp } from "./helpers/account";
 import { CONFIRM_BUTTON, confirmEmailLink, expiredCopyOfLink } from "./helpers/verify";
-
-// Each test gets its own client IP so the per-IP throttles never trip across the suite
-// (Better Auth ignores a value that is not an IP address and shares one bucket instead).
-function testIp() {
-  return `10.${randomBytes(3).join(".")}`;
-}
 
 test.beforeEach(async ({ page }) => {
   await page.setExtraHTTPHeaders({ "x-forwarded-for": testIp() });
@@ -365,6 +360,8 @@ test("a verify link cannot be confirmed by another account", async ({ page }) =>
   // The link was not used up: the account it was sent for can still confirm it.
   await page.goto("/account");
   await page.getByRole("button", { name: "ログアウト" }).click();
+  // Opening the link before the logout has finished would cancel it.
+  await expect(page).toHaveURL(/\/login$/);
   await confirmEmailLink(page, link, { email: victim, password: PASSWORD });
   await expect(page.getByRole("heading", { name: "メールアドレスを確認しました" })).toBeVisible();
 });

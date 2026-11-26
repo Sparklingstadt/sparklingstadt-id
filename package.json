@@ -10,6 +10,7 @@
     "test:e2e": "playwright test",
     "oidc:keygen": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/oidc-keygen.ts",
     "oidc:client": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/oidc-client.ts",
+    "oidc:import-clients": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-clients.ts",
     "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"tests/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

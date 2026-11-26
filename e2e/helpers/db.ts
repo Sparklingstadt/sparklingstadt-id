@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Client } from "pg";
 import { hashToken } from "../../lib/id/tokens";
 
@@ -23,9 +24,24 @@ async function run(sql: string, values: unknown[]): Promise<number> {
 // Prisma stores DateTime as UTC in timestamp(3) columns.
 const ONE_SECOND_AGO = "now() at time zone 'UTC' - interval '1 second'";
 
+/** How the oauth-provider plugin stores codes and opaque tokens: SHA-256, base64url without padding. */
+function storedToken(value: string): string {
+  return createHash("sha256").update(value).digest("base64url");
+}
+
 /** Puts an authorization code past its 5 minutes. Returns the number of rows changed (1 when found). */
 export function expireAuthCode(code: string): Promise<number> {
-  return run(`update auth_codes set expires_at = ${ONE_SECOND_AGO} where code_hash = $1`, [hashToken(code)]);
+  return run(`update ba_verifications set expires_at = ${ONE_SECOND_AGO} where identifier = $1`, [storedToken(code)]);
+}
+
+/** Puts an opaque access token past its 5 minutes. Returns the number of rows changed (1 when found). */
+export function expireAccessToken(token: string): Promise<number> {
+  return run(`update ba_oauth_access_tokens set expires_at = ${ONE_SECOND_AGO} where token = $1`, [storedToken(token)]);
+}
+
+/** Whether a session row with this token still exists. */
+export async function sessionExists(token: string): Promise<boolean> {
+  return ((await query("select 1 from ba_sessions where token = $1", [token])).rowCount ?? 0) > 0;
 }
 
 /**

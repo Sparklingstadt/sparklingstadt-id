@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { expect, test, type Page } from "@playwright/test";
 import { hashToken } from "../lib/id/tokens";
 import { lastMailTo } from "./helpers/mail-log";
+import { testIp } from "./helpers/account";
 import { confirmEmailLink } from "./helpers/verify";
 
 const ISSUER = "http://localhost:3000";
@@ -23,7 +24,7 @@ async function sessionRows(token: string): Promise<number> {
 // Each test gets its own client IP so per-IP throttles never trip.
 test.use({
   extraHTTPHeaders: async ({}, provide) => {
-    await provide({ "x-forwarded-for": `e2e-${randomUUID()}` });
+    await provide({ "x-forwarded-for": testIp() });
   },
 });
 
@@ -180,7 +181,7 @@ test("logout with only an id_token_hint returns to that client's registered URI"
 
 test("an id_token_hint of another account does not end the session without asking", async ({ page, browser }) => {
   // Someone else's ID token: a client of theirs holds it, not a client this user signed in to.
-  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `e2e-${randomUUID()}` } });
+  const other = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": testIp() } });
   const otherPage = await other.newPage();
   await signedInUser(otherPage);
   const foreignHint = await obtainIdToken(otherPage);

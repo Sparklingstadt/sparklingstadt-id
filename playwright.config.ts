@@ -27,15 +27,20 @@ const oidcClients =
     },
   ]);
 
+// The global setup registers the clients in the database (lib/id/client-import.ts), as the import script does in
+// production; the legacy /oauth/logout still reads them from the environment.
+process.env.DATABASE_URL = databaseUrl;
+process.env.OIDC_CLIENTS = oidcClients;
 // The mail helpers (e2e/helpers/mail-log.ts) read the same file the server writes.
 process.env.MAIL_LOG = mailLog;
 // The server signs its mail links with this secret; tests that need an expired link sign one themselves.
 process.env.BETTER_AUTH_SECRET ??= "e2e-better-auth-secret-0123456789abcdef";
-// Tests sign their own tokens (an expired access token cannot be waited for), so the workers get the server's key.
+// The legacy /oauth/logout still reads a signing key from the environment (Better Auth keeps its own in ba_jwks).
 process.env.OIDC_SIGNING_KEY ??= generateSigningJwk();
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   workers: 1,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
