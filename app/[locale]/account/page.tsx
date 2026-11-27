@@ -79,6 +79,7 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
         }}
       />
       <PasskeySection
+        locale={locale}
         freshLoginHref={`${getPathname({ href: "/login", locale })}?${new URLSearchParams({
           reauth: "1",
           fresh: "1",
@@ -89,6 +90,9 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           lead: t("Account.passkeysLead"),
           name: t("Account.passkeyName"),
           namePlaceholder: t("Account.passkeyNamePlaceholder"),
+          password: t("Account.currentPassword"),
+          wrongPassword: t("Errors.passwordIncorrect"),
+          throttled: t("Errors.throttled"),
           add: t("Account.passkeyAdd"),
           pending: t("Account.pending"),
           empty: t("Account.passkeysEmpty"),

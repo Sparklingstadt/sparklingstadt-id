@@ -1,21 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import type { Locale } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
+import { grantPasskeyAddAction } from "../actions";
 
-type Labels = Record<"heading" | "lead" | "name" | "namePlaceholder" | "add" | "pending" | "empty" | "delete" | "failed" | "unnamed", string>;
+type Labels = Record<"heading" | "lead" | "name" | "namePlaceholder" | "password" | "wrongPassword" | "throttled" | "add" | "pending" | "empty" | "delete" | "failed" | "unnamed", string>;
 
-/** The signed-in user's passkeys: named, listed, added and deleted here (any number of them). */
-export function PasskeySection({ labels, freshLoginHref }: { labels: Labels; freshLoginHref: string }) {
+/**
+ * The signed-in user's passkeys: named, listed, added and deleted here (any number of them). Adding one takes the
+ * account password: the Server Action checks it and grants the registration, which the server then insists on.
+ */
+export function PasskeySection({ locale, labels, freshLoginHref }: { locale: Locale; labels: Labels; freshLoginHref: string }) {
   const { data: passkeys, refetch } = authClient.useListPasskeys();
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
 
   async function add(event: React.FormEvent) {
     event.preventDefault();
     setPending(true);
-    setFailed(false);
+    setMessage(null);
+    const granted = await grantPasskeyAddAction(locale, password);
+    if (granted !== "ok") {
+      setPending(false);
+      setMessage(granted === "throttled" ? labels.throttled : labels.wrongPassword);
+      return;
+    }
     const { error } = await authClient.passkey.addPasskey({ name: name.trim() || undefined });
     setPending(false);
     // Adding a credential needs a sign-in from the last 24 hours (Better Auth's freshAge): ask for one, then come back.
@@ -24,17 +36,18 @@ export function PasskeySection({ labels, freshLoginHref }: { labels: Labels; fre
       return;
     }
     if (error) {
-      setFailed(true);
+      setMessage(labels.failed);
       return;
     }
     setName("");
+    setPassword("");
     await refetch();
   }
 
   async function remove(id: string) {
-    setFailed(false);
+    setMessage(null);
     const { error } = await authClient.passkey.deletePasskey({ id });
-    if (error) setFailed(true);
+    if (error) setMessage(labels.failed);
     else await refetch();
   }
 
@@ -62,7 +75,12 @@ export function PasskeySection({ labels, freshLoginHref }: { labels: Labels; fre
           <input id="passkey-name" type="text" maxLength={50} value={name} placeholder={labels.namePlaceholder}
             onChange={(event) => setName(event.target.value)} />
         </div>
-        {failed ? <p className="id-alert" role="alert">{labels.failed}</p> : null}
+        <div className="id-field">
+          <label htmlFor="passkey-password">{labels.password}</label>
+          <input id="passkey-password" type="password" autoComplete="current-password" required value={password}
+            onChange={(event) => setPassword(event.target.value)} />
+        </div>
+        {message ? <p className="id-alert" role="alert">{message}</p> : null}
         <button type="submit" className="button primary" disabled={pending}>
           {pending ? labels.pending : labels.add}
         </button>

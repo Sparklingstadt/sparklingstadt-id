@@ -14,6 +14,7 @@ import { cancelPendingLinks } from "@/lib/id/email-links";
 import { authOptionsFrom } from "@/lib/id/auth-options";
 import { credentialDeps, verifyCredential } from "@/lib/id/credential";
 import { hashPassword } from "@/lib/password";
+import { passkeyPasswordGate } from "@/lib/id/passkey-grant";
 import { oidcCompat } from "@/lib/id/oidc-compat";
 import { hashToken } from "@/lib/id/tokens";
 import { twoFactorPolicy } from "@/lib/id/two-factor-policy";
@@ -121,6 +122,8 @@ export const auth = betterAuth({
     // First, so that an HTTP request for an endpoint only the server actions use is answered 404 before anything else.
     serverOnlyEndpoints(),
     accountThrottle(),
+    // Adding a passkey needs the password typed just before (lib/id/passkey-grant.ts).
+    passkeyPasswordGate(),
     // Before oauthProvider, so that its hooks run first (lib/id/oidc-compat.ts).
     oidcCompat(),
     // The ID token's signing key (ES256). The issuer is ID_ISSUER, the same value as baseURL.
@@ -174,7 +177,8 @@ export const auth = betterAuth({
         token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
       },
     }),
-    // Passkeys are registered only while signed in (the plugin's default), from /account. A passkey is the user's
+    // Passkeys are registered only while signed in (the plugin's default), from /account, and only after the password
+    // was entered there (passkeyPasswordGate above). A passkey is the user's
     // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code: twoFactor above
     // holds back only the password sign-in (/sign-in/email), not /passkey/verify-authentication.
     passkey({

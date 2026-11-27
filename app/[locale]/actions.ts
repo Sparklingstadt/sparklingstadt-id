@@ -10,6 +10,7 @@ import {
   changeDisplayName,
   changePassword,
   confirmEmail,
+  grantPasskeyAdd,
   isThrottled,
   requestEmailChange,
   requestPasswordReset,
@@ -182,4 +183,21 @@ export async function resetPasswordAction(_state: FormState, formData: FormData)
   }
   if (!result.ok) return { invalidLink: true };
   redirect(`${getPathname({ href: "/login", locale })}?reset=done`);
+}
+
+export type PasskeyGrantResult = "ok" | "wrongPassword" | "throttled";
+
+/**
+ * The account page's passkey form: proves the password before the browser starts the registration. The page calls
+ * the Better Auth endpoints itself afterwards; passkeyPasswordGate (lib/id/passkey-grant.ts) refuses them without this grant.
+ */
+export async function grantPasskeyAddAction(locale: Locale, password: string): Promise<PasskeyGrantResult> {
+  const current = await getCurrentUser();
+  if (!current) redirect(getPathname({ href: "/login", locale: hasLocale(routing.locales, locale) ? locale : routing.defaultLocale }));
+  try {
+    return await grantPasskeyAdd(current.session.id, password);
+  } catch (error) {
+    if (isThrottled(error)) return "throttled";
+    throw error;
+  }
 }

@@ -6,6 +6,7 @@ import { getPrisma } from "@/lib/prisma";
 import { cancelPendingLinks, forgetChangeEmailLink, peekEmailLink } from "./email-links.ts";
 import type { EmailLinkPurpose } from "./link-token.ts";
 import { sendEmailChangeRequested } from "./auth-mail.ts";
+import { PASSKEY_GRANT_MINUTES, passkeyGrantIdentifier } from "./passkey-grant.ts";
 import { checkPassword, normalizeDisplayName, normalizeEmail, ValidationError } from "./validation.ts";
 
 /** The input rules stay ours (validation.ts); Better Auth does the account work, and its mail hooks are in auth-mail.ts. */
@@ -71,6 +72,30 @@ export async function requestEmailChange(
   await auth.api.changeEmail({ body: { newEmail: email }, headers: requestHeaders });
   await sendEmailChangeRequested(user.email);
   return "sent";
+}
+
+/**
+ * Checks the password of the signed-in account and records, for this session, the grant that lets one passkey be
+ * added for 5 minutes (the hook in lib/id/passkey-grant.ts enforces it). The check counts toward the same
+ * 5-per-15-minutes limit as the other password forms (accountThrottle, on /verify-password); a throttled request throws.
+ */
+export async function grantPasskeyAdd(sessionId: string, password: string): Promise<"ok" | "wrongPassword"> {
+  try {
+    await auth.api.verifyPassword({ body: { password }, headers: await headers() });
+  } catch (error) {
+    if (failedWith(error, "INVALID_PASSWORD")) return "wrongPassword";
+    throw error;
+  }
+  const { internalAdapter } = await auth.$context;
+  const identifier = passkeyGrantIdentifier(sessionId);
+  // One grant per session: a new password entry replaces the last one.
+  await internalAdapter.consumeVerificationValue(identifier);
+  await internalAdapter.createVerificationValue({
+    identifier,
+    value: "granted",
+    expiresAt: new Date(Date.now() + PASSKEY_GRANT_MINUTES * 60 * 1000),
+  });
+  return "ok";
 }
 
 /**

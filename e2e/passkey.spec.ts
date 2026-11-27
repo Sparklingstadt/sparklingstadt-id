@@ -49,10 +49,14 @@ async function authTime(request: APIRequestContext, callback: URL, verifier: str
   return JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString("utf8")).auth_time as number;
 }
 
-async function addPasskey(page: Page, name = "テスト用の指紋") {
+/** The passkey section of /account (the 2FA and password forms have a field of the same label). */
+const passkeyArea = (page: Page) => page.getByRole("region", { name: "パスキー", exact: true });
+
+async function addPasskey(page: Page, name = "テスト用の指紋", password = PASSWORD) {
   await page.goto("/account");
-  await page.getByLabel("パスキーの名前").fill(name);
-  await page.getByRole("button", { name: "パスキーを追加" }).click();
+  await passkeyArea(page).getByLabel("パスキーの名前").fill(name);
+  await passkeyArea(page).getByLabel("今のパスワード").fill(password);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
 }
 
@@ -175,8 +179,9 @@ test("adding a passkey with an old session asks for a fresh login and then succe
   expect(await ageSession(oldToken)).toBe(1);
 
   await page.goto("/account");
-  await page.getByLabel("パスキーの名前").fill("古いセッション");
-  await page.getByRole("button", { name: "パスキーを追加" }).click();
+  await passkeyArea(page).getByLabel("パスキーの名前").fill("古いセッション");
+  await passkeyArea(page).getByLabel("今のパスワード").fill(PASSWORD);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
   await expect(page).toHaveURL(/\/login\?/);
   expect(new URL(page.url()).searchParams.get("next")).toBe("/account");
   await expect(page.getByText("パスキーを追加するには、もう一度ログインしてください。")).toBeVisible();
@@ -199,7 +204,8 @@ test("another 403 while adding a passkey shows the failure message, not the logi
     route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ code: "INVALID_ORIGIN", message: "Invalid origin" }) }),
   );
   await page.goto("/account");
-  await page.getByRole("button", { name: "パスキーを追加" }).click();
+  await passkeyArea(page).getByLabel("今のパスワード").fill(PASSWORD);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "パスキーの操作ができませんでした" })).toBeVisible();
   await expect(page).toHaveURL(/\/account$/);
 });
@@ -287,4 +293,89 @@ test("a password change keeps the account's passkeys", async ({ page }) => {
   await form.getByRole("button", { name: "パスワードを変更" }).click();
   await expect(form.getByRole("status")).toBeVisible();
   expect(await passkeyCountOf(email)).toBe(1);
+});
+
+// Owner's decision (2026-11-27): adding a passkey takes the password, so a stolen session cookie alone cannot plant one.
+const GENERATE = "/api/auth/passkey/generate-register-options";
+const VERIFY = "/api/auth/passkey/verify-registration";
+const WRONG_PASSWORD = "wrong password!!";
+
+test("a wrong password adds no passkey", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  await page.goto("/account");
+  await passkeyArea(page).getByLabel("パスキーの名前").fill("入らない指紋");
+  await passkeyArea(page).getByLabel("今のパスワード").fill(WRONG_PASSWORD);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(passkeyArea(page).getByRole("alert")).toHaveText("パスワードが正しくありません。");
+  await expect(page.getByText("パスキーはまだありません。")).toBeVisible();
+  expect(await passkeyCountOf(email)).toBe(0);
+});
+
+test("a session with no password check is refused the registration endpoints over HTTP", async ({ page }) => {
+  const email = await signedInUser(page);
+  const options = await page.request.get(GENERATE);
+  expect(options.status()).toBe(403);
+  expect((await options.json()).code).toBe("PASSWORD_REQUIRED");
+  const verify = await page.request.post(VERIFY, { headers: { Origin: ISSUER }, data: { response: {} } });
+  expect(verify.status()).toBe(403);
+  expect((await verify.json()).code).toBe("PASSWORD_REQUIRED");
+  expect(await passkeyCountOf(email)).toBe(0);
+});
+
+test("a grant of one session is no use to another session of the account", async ({ page, request }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  // The password is accepted (the grant is made), but the browser's registration request never leaves.
+  await page.route("**/passkey/generate-register-options*", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+  await page.goto("/account");
+  await passkeyArea(page).getByLabel("今のパスワード").fill(PASSWORD);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(passkeyArea(page).getByRole("alert")).toBeVisible();
+
+  const signIn = await request.post("/api/auth/sign-in/email", { headers: { Origin: ISSUER }, data: { email, password: PASSWORD } });
+  expect(signIn.status()).toBe(200);
+  const other = await request.get(GENERATE);
+  expect(other.status()).toBe(403);
+  expect((await other.json()).code).toBe("PASSWORD_REQUIRED");
+
+  // The session that entered the password is let through.
+  expect((await page.request.get(GENERATE)).status()).toBe(200);
+});
+
+test("the grant is single-use", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  await addPasskey(page, "一度だけの指紋");
+  expect(await passkeyCountOf(email)).toBe(1);
+
+  const again = await page.request.get(GENERATE);
+  expect(again.status()).toBe(403);
+  expect((await again.json()).code).toBe("PASSWORD_REQUIRED");
+  // Nor does a second click on the button without the password work.
+  await passkeyArea(page).getByLabel("パスキーの名前").fill("二つ目");
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(passkeyArea(page).getByLabel("今のパスワード")).toBeVisible();
+  expect(await passkeyCountOf(email)).toBe(1);
+});
+
+test("the 6th wrong password in the passkey form is throttled", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  await page.goto("/account");
+  const area = passkeyArea(page);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await area.getByLabel("今のパスワード").fill(WRONG_PASSWORD);
+    await area.getByRole("button", { name: "パスキーを追加" }).click();
+    await expect(area.getByRole("alert")).toHaveText("パスワードが正しくありません。");
+  }
+  // Even the right password is refused now.
+  await area.getByLabel("今のパスワード").fill(PASSWORD);
+  await area.getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(area.getByRole("alert")).toHaveText("試行回数が多すぎます。しばらくしてからお試しください。");
+  expect(await passkeyCountOf(email)).toBe(0);
 });
