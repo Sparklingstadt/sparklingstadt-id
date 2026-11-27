@@ -7,79 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum EmailTokenPurpose {
-  verify
-  change_email
-  reset_password
-
-  @@map("email_token_purpose")
-}
-
-model LegacyUser {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  displayName     String    @map("display_name")
-  passwordHash    String    @map("password_hash")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  sessionVersion  Int       @default(0) @map("session_version")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  sessions    LegacySession[]
-  emailTokens EmailToken[]
-  authCodes   AuthCode[]
-
-  @@map("users")
-}
-
-model LegacySession {
-  id             String   @id @default(cuid())
-  userId         String   @map("user_id")
-  tokenHash      String   @unique @map("token_hash")
-  sessionVersion Int      @map("session_version")
-  expiresAt      DateTime @map("expires_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("sessions")
-}
-
-model EmailToken {
-  id        String            @id @default(cuid())
-  userId    String            @map("user_id")
-  purpose   EmailTokenPurpose
-  tokenHash String            @unique @map("token_hash")
-  email     String
-  expiresAt DateTime          @map("expires_at")
-  usedAt    DateTime?         @map("used_at")
-  createdAt DateTime          @default(now()) @map("created_at")
-
-  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("email_tokens")
-}
-
-model AuthCode {
-  id            String    @id @default(cuid())
-  codeHash      String    @unique @map("code_hash")
-  clientId      String    @map("client_id")
-  userId        String    @map("user_id")
-  redirectUri   String    @map("redirect_uri")
-  codeChallenge String    @map("code_challenge")
-  nonce         String?
-  authTime      DateTime  @map("auth_time")
-  expiresAt     DateTime  @map("expires_at")
-  usedAt        DateTime? @map("used_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  user LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("auth_codes")
-}
-
 model Throttle {
   key         String   @id
   count       Int
@@ -89,7 +16,7 @@ model Throttle {
 }
 
 // Better Auth's core tables. Model names are the ones Better Auth looks up (user, session, ...);
-// table names keep the ba_ prefix so they stay apart from the legacy tables until those are dropped.
+// table names carry the ba_ prefix.
 model User {
   id               String   @id
   name             String

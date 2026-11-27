@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { Client } from "pg";
+import { deleteUser } from "./helpers/db";
 
 const PASSWORD = "  twelve chars  ";
 // Better Auth checks the Origin of a request that carries cookies or follows a sign-in; a browser always sends it.
@@ -25,7 +26,15 @@ async function accountPassword(email: string): Promise<string> {
 
 test("sign-up and sign-in through /api/auth work with the legacy password hash", async ({ request }) => {
   const email = `ba-core-${Date.now()}-${randomUUID().slice(0, 8)}@example.com`;
+  try {
+    await signUpAndIn(request, email);
+  } finally {
+    // The test makes its own account and removes it (its sessions and password cascade).
+    await deleteUser(email);
+  }
+});
 
+async function signUpAndIn(request: APIRequestContext, email: string) {
   const signUp = await request.post("/api/auth/sign-up/email", {
     data: { email, password: PASSWORD, name: "べったーおーす" },
     headers,
@@ -37,4 +46,11 @@ test("sign-up and sign-in through /api/auth work with the legacy password hash",
   const signIn = await request.post("/api/auth/sign-in/email", { data: { email, password: PASSWORD }, headers });
   expect(signIn.status(), await signIn.text()).toBe(200);
   expect(signIn.headers()["set-cookie"]).toMatch(/better-auth\.session_token=/);
+}
+
+// The production checklist (README) calls this after a deploy: a missing BETTER_AUTH_SECRET only shows at the first request.
+test("the health endpoint answers 200", async ({ request }) => {
+  const response = await request.get("/api/auth/ok");
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toEqual({ ok: true });
 });
