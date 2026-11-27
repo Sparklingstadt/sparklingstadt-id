@@ -13,6 +13,7 @@ import { PasswordForm } from "../_components/password-form";
 import { logOutAction } from "../actions";
 import { PasskeySection } from "./passkey-section";
 import { ResendForm } from "./resend-form";
+import { TwoFactorSection } from "./two-factor-section";
 
 export async function generateMetadata({ params }: PageProps<"/[locale]/account">): Promise<Metadata> {
   const { locale } = await params;
@@ -94,6 +95,31 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           delete: t("Account.passkeyDelete"),
           failed: t("Account.passkeyFailed"),
           unnamed: t("Account.passkeyUnnamed"),
+        }}
+      />
+      <TwoFactorSection
+        enabled={user.twoFactorEnabled}
+        labels={{
+          heading: t("Account.twoFactorHeading"),
+          lead: t("Account.twoFactorLead"),
+          on: t("Account.twoFactorOn"),
+          off: t("Account.twoFactorOff"),
+          password: t("Account.currentPassword"),
+          enable: t("Account.twoFactorEnable"),
+          scan: t("Account.twoFactorScan"),
+          qrAlt: t("Account.twoFactorQrAlt"),
+          manual: t("Account.twoFactorManual"),
+          code: t("Account.twoFactorCode"),
+          confirm: t("Account.twoFactorConfirm"),
+          backupHeading: t("Account.twoFactorBackupHeading"),
+          backupLead: t("Account.twoFactorBackupLead"),
+          regenerate: t("Account.twoFactorRegenerate"),
+          disable: t("Account.twoFactorDisable"),
+          pending: t("Account.pending"),
+          failed: t("Account.twoFactorFailed"),
+          wrongPassword: t("Errors.passwordIncorrect"),
+          wrongCode: t("Errors.wrongCode"),
+          throttled: t("Errors.throttled"),
         }}
       />
       <form className="id-section" action={logOutAction}>

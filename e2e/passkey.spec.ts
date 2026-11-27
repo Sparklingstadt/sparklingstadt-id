@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { newEmail, PASSWORD, signedInUser, signUp, testIp } from "./helpers/account";
 import { ageSession, sessionExists } from "./helpers/db";
+import { totp } from "./helpers/totp";
 import { addVirtualAuthenticator } from "./helpers/webauthn";
 
 const ISSUER = "http://localhost:3000";
@@ -202,8 +203,29 @@ test("another 403 while adding a passkey shows the failure message, not the logi
   await expect(page).toHaveURL(/\/account$/);
 });
 
-test.fixme("passkey login does not ask for the 2FA code", async () => {
-  // Enabled after Task 7 (two-factor): with 2FA on, a passkey sign-in goes straight to the account page.
+test("passkey login does not ask for the 2FA code", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  await signedInUser(page);
+  await addPasskey(page);
+  const area = page.getByRole("region", { name: "二要素認証" });
+  await area.getByLabel("今のパスワード").fill(PASSWORD);
+  await area.getByRole("button", { name: "二要素認証をオンにする" }).click();
+  const secret = (await area.getByTestId("totp-secret").textContent())?.replace(/\s/g, "") ?? "";
+  await area.getByLabel("認証アプリのコード").fill(totp(secret));
+  await area.getByRole("button", { name: "確認してオンにする" }).click();
+  await expect(area.getByText("二要素認証はオンです。")).toBeVisible();
+  await logOut(page);
+
+  // From a client too: the passkey sign-in goes straight on to the code.
+  const params = authorizeParams();
+  await page.goto(`/oauth/authorize?${params}`);
+  await expect(page).toHaveURL(/\/login\?/);
+  await signInWithPasskey(page);
+  await expect(page).toHaveURL(new RegExp(`^${REDIRECT_URI}\\?`));
+  expect(new URL(page.url()).searchParams.get("code")).toMatch(CODE);
+  await page.goto("/account");
+  await expect(page).toHaveURL(/\/account$/);
 });
 
 test("deleting the passkey stops it from signing in", async ({ page }) => {

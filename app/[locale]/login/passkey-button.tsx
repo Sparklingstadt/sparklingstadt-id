@@ -9,7 +9,8 @@ type Labels = Record<"label" | "pending" | "failed", string>;
  * Sign-in with a passkey. The same ceremony also runs as conditional UI: the browser offers the passkey in the
  * email field's autofill list (autocomplete="username webauthn"), and picking it signs in. Like the password form,
  * it ends by going to `redirectTo` (for a client, the authorize URL, which then issues the code). A passkey sign-in
- * never asks for the 2FA code: the device already verified the user.
+ * never asks for the 2FA code: the device already verified the user, and the twoFactor plugin holds back only the
+ * password sign-in (lib/auth.ts), so /passkey/verify-authentication makes the session at once.
  */
 export function PasskeyButton({ redirectTo, labels }: { redirectTo: string; labels: Labels }) {
   const [pending, setPending] = useState(false);

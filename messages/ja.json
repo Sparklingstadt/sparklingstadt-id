@@ -12,7 +12,8 @@
       "forgot": "パスワードの再設定",
       "reset": "新しいパスワードの設定",
       "logout": "ログアウトの確認",
-      "signedOut": "ログアウト完了"
+      "signedOut": "ログアウト完了",
+      "twoFactor": "二要素認証"
     },
     "Fields": {
       "email": "メールアドレス",
@@ -29,7 +30,9 @@
       "throttled": "試行回数が多すぎます。しばらくしてからお試しください。",
       "mailFailed": "メールを送れませんでした。しばらくしてからお試しください。",
       "wrongPassword": "今のパスワードが正しくありません。",
-      "sameEmail": "今のメールアドレスと同じです。"
+      "sameEmail": "今のメールアドレスと同じです。",
+      "wrongCode": "コードが正しくありません。",
+      "passwordIncorrect": "パスワードが正しくありません。"
     },
     "Signup": {
       "heading": "Sparklingstadt IDを作成",
@@ -89,7 +92,22 @@
       "passkeysEmpty": "パスキーはまだありません。",
       "passkeyDelete": "削除",
       "passkeyFailed": "パスキーの操作ができませんでした。もう一度お試しください。",
-      "passkeyUnnamed": "名前のないパスキー"
+      "passkeyUnnamed": "名前のないパスキー",
+      "twoFactorHeading": "二要素認証",
+      "twoFactorLead": "オンにすると、パスワードでログインするときに、認証アプリのコードも入力します。パスキーでのログインではコードは不要です。",
+      "twoFactorOn": "二要素認証はオンです。",
+      "twoFactorOff": "二要素認証はオフです。",
+      "twoFactorEnable": "二要素認証をオンにする",
+      "twoFactorScan": "認証アプリ（Google Authenticator、Microsoft Authenticator など）でこの QR コードを読み取ってください。",
+      "twoFactorQrAlt": "認証アプリ用の QR コード",
+      "twoFactorManual": "読み取れない場合は、このキーを入力してください：",
+      "twoFactorCode": "認証アプリのコード",
+      "twoFactorConfirm": "確認してオンにする",
+      "twoFactorBackupHeading": "バックアップコード",
+      "twoFactorBackupLead": "認証アプリが使えなくなったときに、コードの代わりに1回ずつ使えます。この画面を離れると二度と表示されないので、安全な場所に保存してください。",
+      "twoFactorRegenerate": "バックアップコードを作り直す",
+      "twoFactorDisable": "二要素認証をオフにする",
+      "twoFactorFailed": "二要素認証の操作ができませんでした。もう一度お試しください。"
     },
     "Verify": {
       "verifiedHeading": "メールアドレスを確認しました",
@@ -140,6 +158,19 @@
       "heading": "ログアウトしました",
       "body": "Sparklingstadt IDからログアウトしました。",
       "loginLink": "もう一度ログインする"
+    },
+    "TwoFactor": {
+      "heading": "二要素認証",
+      "lead": "認証アプリに表示されている6桁のコードを入力してください。",
+      "backupLead": "保存しておいたバックアップコードを1つ入力してください。使ったコードはもう使えません。",
+      "code": "認証アプリのコード",
+      "backupCode": "バックアップコード",
+      "submit": "確認する",
+      "pending": "確認中…",
+      "useBackup": "バックアップコードを使う",
+      "useTotp": "認証アプリのコードを使う",
+      "expired": "ログインの手続きが期限切れか、見つかりません。もう一度ログインしてください。",
+      "backToLogin": "ログインに戻る"
     }
   }
 }

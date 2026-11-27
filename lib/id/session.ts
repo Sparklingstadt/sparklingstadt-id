@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 export type CurrentUser = {
-  user: { id: string; email: string; name: string; emailVerified: boolean };
+  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactorEnabled: boolean };
   session: { id: string; createdAt: Date };
 };
 
@@ -16,7 +16,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!found) return null;
   const { user, session } = found;
   return {
-    user: { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      emailVerified: user.emailVerified,
+      twoFactorEnabled: user.twoFactorEnabled === true,
+    },
     session: { id: session.id, createdAt: session.createdAt },
   };
 });
