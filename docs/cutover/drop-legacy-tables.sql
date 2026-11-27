@@ -1,3 +1,5 @@
+-- Run by hand (psql / Neon SQL editor) in the follow-up PR, after the cutover is confirmed (README "本番の切り替え"),
+-- then turn it into a Prisma migration together with removing the Legacy* models from schema.prisma.
 -- The first implementation's tables, replaced by Better Auth's (ba_*). `throttles` stays (per-address and
 -- per-account limits).
 --

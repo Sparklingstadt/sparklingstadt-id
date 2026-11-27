@@ -90,24 +90,49 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
 
 前の実装（自作の OIDC）から Better Auth へ移すための、1 回だけの手順です。持ち主のアカウント（`id` はそのまま。各クライアントが持つ `sub` が変わりません）、パスワードのハッシュ、`OIDC_CLIENTS`、署名鍵（`kid` もそのまま）を移します。ログインのセッションは切れるので、移したあとにもう一度ログインします。各サービス側のセッションはそのままです。
 
-1. Vercel に `BETTER_AUTH_SECRET` を足します。`OIDC_CLIENTS` と `OIDC_SIGNING_KEY` はそのまま残します（取り込みに使います）。
-2. デプロイします。
-3. 取り込みを実行します。手元から、本番の `DATABASE_URL` などを入れて行います。
+**手元から本番の DB を操作するときの約束。** `prisma.config.ts`（マイグレーション）は `.env.local` を読み、`DATABASE_URL_UNPOOLED` を `DATABASE_URL` より先に使います。手元の開発用の値が本番に混ざらないように、次のどちらかにします。
+
+- 本番の値を、同じシェルで明示的に設定する（`DATABASE_URL` と `DATABASE_URL_UNPOOLED` の両方。同じ DB を指すこと）。
+- 作業のあいだ `.env.local` を別の名前にしておく。
+
+`import:legacy` は `.env.local` を読みません。次の値をシェルで明示的に設定するか、本番の値だけを書いた 1 つのファイルを `--env-file=<パス>` で渡します（どれか 1 つでも足りなければ止まります）。どの値がどこから来たか（値そのものではなく、シェルかファイルか）と、つなぐ DB のホスト名が出るので、本番の DB と同じか確かめます。
+
+| 名前 | 値 |
+| --- | --- |
+| `DATABASE_URL` | 本番の DB |
+| `BETTER_AUTH_SECRET` | **Vercel の値とバイト単位で同じもの**（空白や改行も含めて）。違うと、取り込んだ署名鍵をサーバーが復号できず、トークンの発行がすべて失敗する |
+| `OIDC_SIGNING_KEY` | 今の本番の署名鍵（Vercel の値） |
+| `OIDC_CLIENTS` | 今の本番のクライアント（Vercel の値） |
+| `ID_ISSUER` | 本番の issuer |
+
+手順（スペック 5 章の順）：
+
+1. Vercel に `BETTER_AUTH_SECRET` を足します（まだ再デプロイしない）。`OIDC_CLIENTS` と `OIDC_SIGNING_KEY` はそのまま残します。
+2. 表を足します。足すだけなので、今動いている古いコードは `ba_*` の表を使わず、影響を受けません。
 
    ```sh
-   pnpm exec prisma migrate deploy   # 手順 a
-   pnpm run import:legacy            # 手順 b
-   pnpm exec prisma migrate resolve --rolled-back 20261127120000_drop_legacy_tables   # 手順 c
-   pnpm run db:deploy                # 手順 d
+   pnpm run db:deploy
    ```
 
-   - a. Better Auth の表を作ります。最後の `20261127120000_drop_legacy_tables`（古い表を消す）は、持ち主の行がまだ `ba_users` にないと「`pnpm run import:legacy` を先に実行してください」と言って止まります。データは消えません。
-   - b. `import:legacy` が、`users` の行を `ba_users`・`ba_accounts` に移し、`OIDC_CLIENTS` を取り込み、`OIDC_SIGNING_KEY` を `ba_jwks` に同じ `kid` で入れます。結果は `{"users":1,"clients":N,"key":"imported"}` のような 1 行です。`key` が `"skipped"` のときは、鍵が正しくないか `BETTER_AUTH_SECRET` が空です（新しい鍵が自動で作られ、クライアントは JWKS を読み直すので動きます）。何度実行しても同じ結果になります。
-   - c, d. 手順 a で止まった移行の印を外してから、続きを適用します。a で止まらなかった（古い表がすでにない）ときは c と d は要りません。
+3. 取り込みを実行します。
 
-4. typle-r などのクライアントで「Sparklingstadt ID でログイン」が今までどおり動くことを確かめます（同じアカウントで入れること、クライアントの設定を何も変えずに済むこと）。
-5. `/account` でパスキーを登録し、二要素認証をオンにします。
-6. 古い環境変数（`OIDC_SIGNING_KEY`・`OIDC_PREVIOUS_PUBLIC_KEYS`）を Vercel から消します。`OIDC_CLIENTS` もサーバーは読まないので消せます（クライアントを足すときは、手元の環境変数に入れて `pnpm run import:clients` を実行します）。古い表（`users`・`sessions`・`email_tokens`・`auth_codes`）は手順 3 で消えています。`throttles` は使い続けます。
+   ```sh
+   pnpm run import:legacy --env-file=production.env   # またはシェルに明示的に設定して引数なしで
+   ```
+
+   `users` の行を `ba_users`・`ba_accounts` に移し、`OIDC_CLIENTS` を取り込み、`OIDC_SIGNING_KEY` を `ba_jwks` に同じ `kid` で入れます。結果は `{"users":1,"clients":N,"key":"imported"}` のような 1 行です。何度実行しても同じ結果になります。
+   - `key` が `"skipped"` のときは、鍵が正しくないか、同じ `kid` がすでにあります（新しい鍵が自動で作られ、クライアントは JWKS を読み直すので動きます）。
+   - **同じメールアドレスの別の `ba_users` の行があると、取り込みはエラーで止まります**（両方の `id` が表示されます）。手順 1 から 3 のあいだに新しい `/signup` で同じアドレスを登録したときなどです。持ち主の `sub` を変えないため、飛ばさずに止めます。その `ba_users` の行を消して（`delete from ba_users where id = '<表示された新しい方の id>';`。パスワードやセッションも一緒に消えます）、もう一度実行します。
+   - **`BETTER_AUTH_SECRET` が Vercel と違う値で鍵を取り込んでしまったとき**：その鍵が一番新しい鍵になり、サーバーは復号できず、トークンの発行がすべて失敗します。その行を `kid`（取り込んだ `OIDC_SIGNING_KEY` の `kid`）で消して、正しい値で取り込み直します。
+
+     ```sql
+     delete from ba_jwks where id = '<kid>';
+     ```
+
+4. 新しいコードをデプロイします。
+5. `https://<issuer>/api/auth/ok` が 200 を返すことを確かめます。続けて、typle-r などのすべてのクライアントで「Sparklingstadt ID でログイン」が、同じアカウントで、設定を何も変えずに動くことを確かめます。動かなければ、Vercel の「Instant Rollback」で前のデプロイに戻せます（古い表はまだあるので、古いコードはそのまま動きます）。
+6. `/account` でパスキーを登録し、二要素認証をオンにします。ログインのセッションは切れているので、先にログインし直します。
+7. すべて確かめたら、別の PR で古いものを消します。`docs/cutover/drop-legacy-tables.sql`（`users`・`sessions`・`email_tokens`・`auth_codes` を消す SQL。`throttles` は残る）をマイグレーションにし、`schema.prisma` から `Legacy*`・`EmailToken`・`AuthCode` を消し、Vercel の古い環境変数（`OIDC_SIGNING_KEY`・`OIDC_PREVIOUS_PUBLIC_KEYS`、`OIDC_CLIENTS`）を消します。その SQL は、`users` に `ba_users` にない行が残っていると `users holds accounts that are not in ba_users yet: run "pnpm run import:legacy" first` と言って止まります（データは消えません）。
 
 ## 本番の設定
 
@@ -120,6 +145,8 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
    pnpm run db:deploy
    pnpm run import:clients
    ```
+
+   前の実装から移すときは、上の「本番の切り替え」の手順にします。
 
 5. 試行回数の制限は、クライアントの IP を `x-forwarded-for` から読みます（`lib/id/client-ip.ts`）。デプロイ先は Vercel だけを前提にしています。Vercel はこのヘッダーをクライアントの 1 つのアドレスで上書きするので信用できます。ほかの環境では、クライアントがヘッダーを書き換えられるため、アドレス 1 つだけの正しい値でなければ「不明」として数えます。
 6. デプロイします。

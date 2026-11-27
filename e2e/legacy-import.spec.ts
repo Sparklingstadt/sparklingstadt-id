@@ -43,7 +43,11 @@ function runImport(signingKey: string): Result {
   const out = execFileSync(
     process.execPath,
     ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/import-legacy.ts"],
-    { env: { ...process.env, OIDC_SIGNING_KEY: signingKey }, encoding: "utf8" },
+    {
+      // The script reads only the shell's variables (never .env.local), so every value it needs is passed.
+      env: { ...process.env, OIDC_SIGNING_KEY: signingKey, ID_ISSUER: ISSUER },
+      encoding: "utf8",
+    },
   );
   return JSON.parse(out.trim().split("\n").pop() as string);
 }
@@ -118,5 +122,26 @@ test("a legacy user keeps id and password after import", async ({ page, request 
 test("importing without a legacy users table reports zero users", async () => {
   const hadTable = ((await sql(`select to_regclass('public.users') as t`)).rows[0].t as string | null) !== null;
   test.skip(hadTable, "the legacy table still exists in this database");
-  expect(runImport("")).toMatchObject({ users: 0, key: "skipped" });
+  const signingKey = generateSigningJwk();
+  try {
+    expect(runImport(signingKey)).toMatchObject({ users: 0, key: "imported" });
+  } finally {
+    await sql("delete from ba_jwks where id = $1", [JSON.parse(signingKey).kid]);
+  }
+});
+
+test("the import refuses to run when a value is not set explicitly (it never reads .env.local)", () => {
+  const env = { ...process.env };
+  delete env.BETTER_AUTH_SECRET;
+  let stderr = "";
+  try {
+    execFileSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/import-legacy.ts"], {
+      env: { ...env, OIDC_SIGNING_KEY: generateSigningJwk(), ID_ISSUER: ISSUER },
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch (error) {
+    stderr = String((error as { stderr?: string }).stderr);
+  }
+  expect(stderr).toContain("Set BETTER_AUTH_SECRET explicitly");
 });

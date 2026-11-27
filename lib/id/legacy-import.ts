@@ -45,7 +45,9 @@ type LegacyRow = {
 /**
  * Copies the owner's row of the old `users` table into Better Auth's tables: the same id (the `sub` every client
  * stores), email, name = display_name, emailVerified = email_verified_at is set, and the password hash as it is. A row
- * that is already there (by id or email) is skipped, so running it again changes nothing. The old table is read with
+ * whose id is already there is skipped, so running it again changes nothing. A row whose email belongs to a different
+ * id (an account made on the new sign-up meanwhile) is a conflict: it throws, naming the ids, because skipping it
+ * would leave the owner with a new `sub`. The old table is read with
  * SQL and may be gone (the drop migration removes it), which counts as no users.
  */
 async function importUsers(prisma: LegacyStore): Promise<number> {
@@ -60,7 +62,12 @@ async function importUsers(prisma: LegacyStore): Promise<number> {
   for (const row of rows) {
     const done = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findFirst({ where: { OR: [{ id: row.id }, { email: row.email }] }, select: { id: true } });
-      if (existing) return false;
+      if (existing && existing.id === row.id) return false;
+      if (existing) {
+        throw new Error(
+          `legacy user ${row.id} has the same email as ba_users row ${existing.id}: delete that ba_users row, then import again`,
+        );
+      }
       await tx.user.create({
         data: {
           id: row.id,
