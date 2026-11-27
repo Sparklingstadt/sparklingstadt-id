@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { Client } from "pg";
 import { hashPassword } from "../lib/password.ts";
@@ -11,8 +11,9 @@ const PASSWORD = "  twelve chars  ";
 const databaseUrl =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:55432/sparklingstadt_id";
 
-// The `users` table as the first release (e471d93) created it. The drop migration removed it, so this test makes it
-// itself when it is missing, and removes it again afterwards.
+// The `users` table as the first release (e471d93) created it. The migrations still create it (the follow-up PR drops
+// it, docs/cutover/drop-legacy-tables.sql); this test makes it itself in case a database no longer has it, and then
+// removes it again.
 const LEGACY_USERS = `
   create table if not exists "users" (
     "id" text not null,
@@ -58,6 +59,7 @@ test("a legacy user keeps id and password after import", async ({ page, request 
   const signingKey = generateSigningJwk();
   const kid: string = JSON.parse(signingKey).kid;
   const hadTable = ((await sql(`select to_regclass('public.users') as t`)).rows[0].t as string | null) !== null;
+  let created: string[] = [];
 
   try {
     await sql(LEGACY_USERS);
@@ -65,6 +67,11 @@ test("a legacy user keeps id and password after import", async ({ page, request 
       `insert into "users" (id, email, display_name, password_hash, email_verified_at, updated_at)
        values ($1, $2, $3, $4, now(), now())`,
       [id, email, "もとのなまえ", await hashPassword(PASSWORD)],
+    );
+    // The rows the import will create in ba_users: the legacy accounts not moved yet (ours among them). Only these
+    // are removed afterwards; accounts that were already there stay.
+    created = (await sql(`select id from "users" where id not in (select id from ba_users)`)).rows.map(
+      (row: { id: string }) => row.id,
     );
 
     const first = runImport(signingKey);
@@ -112,21 +119,25 @@ test("a legacy user keeps id and password after import", async ({ page, request 
     expect((await sql("select count(*)::int as n from ba_users where email = $1", [email])).rows[0].n).toBe(1);
     expect((await sql("select count(*)::int as n from ba_accounts where user_id = $1", [id])).rows[0].n).toBe(1);
   } finally {
-    await sql(`delete from ba_users where email = $1 or id in (select id from "users")`, [email]);
+    await sql("delete from ba_users where id = any($1::text[])", [created]);
     await sql("delete from ba_jwks where id = $1", [kid]);
     if (hadTable) await sql(`delete from "users" where id = $1`, [id]);
     else await sql(`drop table if exists "users"`);
   }
 });
 
+// The table is renamed away for the run (and back afterwards), so the test runs whether or not the database has it.
 test("importing without a legacy users table reports zero users", async () => {
   const hadTable = ((await sql(`select to_regclass('public.users') as t`)).rows[0].t as string | null) !== null;
-  test.skip(hadTable, "the legacy table still exists in this database");
+  const hidden = `users_hidden_${randomBytes(4).toString("hex")}`;
+  if (hadTable) await sql(`alter table "users" rename to "${hidden}"`);
   const signingKey = generateSigningJwk();
   try {
+    expect((await sql(`select to_regclass('public.users') as t`)).rows[0].t).toBeNull();
     expect(runImport(signingKey)).toMatchObject({ users: 0, key: "imported" });
   } finally {
     await sql("delete from ba_jwks where id = $1", [JSON.parse(signingKey).kid]);
+    if (hadTable) await sql(`alter table "${hidden}" rename to "users"`);
   }
 });
 
@@ -144,4 +155,34 @@ test("the import refuses to run when a value is not set explicitly (it never rea
     stderr = String((error as { stderr?: string }).stderr);
   }
   expect(stderr).toContain("Set BETTER_AUTH_SECRET explicitly");
+});
+
+test("the client import refuses to run when a value is not set explicitly (it never reads .env.local)", () => {
+  const env = { ...process.env };
+  delete env.OIDC_CLIENTS;
+  let stderr = "";
+  try {
+    execFileSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/import-clients.ts"], {
+      env,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+  } catch (error) {
+    stderr = String((error as { stderr?: string }).stderr);
+  }
+  expect(stderr).toContain("Set OIDC_CLIENTS explicitly");
+});
+
+test("the client import names where each value came from, never the value", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/import-clients.ts"],
+    { env: process.env, encoding: "utf8" },
+  );
+  expect(result.status).toBe(0);
+  expect(result.stderr).toContain("DATABASE_URL: from shell");
+  expect(result.stderr).toContain("OIDC_CLIENTS: from shell");
+  expect(result.stderr).not.toContain(process.env.OIDC_CLIENTS as string);
+  expect(result.stderr).not.toContain("postgres:postgres");
+  expect(result.stdout).toMatch(/^oauthClient: \d+ created, \d+ updated$/m);
 });
