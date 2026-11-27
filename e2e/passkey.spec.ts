@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { newEmail, PASSWORD, signedInUser, signUp, testIp } from "./helpers/account";
-import { ageSession, sessionExists } from "./helpers/db";
+import { ageSession, passkeyCountOf, sessionExists } from "./helpers/db";
+import { lastMailTo } from "./helpers/mail-log";
 import { totp } from "./helpers/totp";
 import { addVirtualAuthenticator } from "./helpers/webauthn";
 
@@ -240,4 +241,50 @@ test("deleting the passkey stops it from signing in", async ({ page }) => {
   await signInWithPasskey(page);
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
+});
+
+// Ruling R10: a password reset removes every passkey of the account (a passkey added from a stolen session must not
+// survive the way back in); a password change keeps them.
+test("a password reset removes the account's passkeys", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  await addPasskey(page, "再設定で消える指紋");
+  expect(await passkeyCountOf(email)).toBe(1);
+  await logOut(page);
+
+  await page.goto("/forgot");
+  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await page.getByRole("button", { name: "再設定メールを送る" }).click();
+  await expect(page.getByRole("heading", { name: "メールを送りました" })).toBeVisible();
+  await page.goto((await lastMailTo(email, "resetPassword")).link);
+  await page.getByLabel("新しいパスワード").fill("a brand new password");
+  await page.getByRole("button", { name: "パスワードを設定" }).click();
+  await expect(page).toHaveURL(/\/login\?reset=done$/);
+  await expect(page.getByRole("status")).toContainText("追加していたパスキーは削除しました。");
+  expect(await passkeyCountOf(email)).toBe(0);
+
+  // The authenticator still holds the credential, but the server no longer knows it.
+  await signInWithPasskey(page);
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
+
+  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await page.getByLabel("パスワード", { exact: true }).fill("a brand new password");
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText("パスキーはまだありません。")).toBeVisible();
+});
+
+test("a password change keeps the account's passkeys", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  await addPasskey(page, "残る指紋");
+  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "パスワードを変更" }) });
+  await form.getByLabel("今のパスワード").fill(PASSWORD);
+  await form.getByLabel("新しいパスワード").fill("a brand new password");
+  await form.getByRole("button", { name: "パスワードを変更" }).click();
+  await expect(form.getByRole("status")).toBeVisible();
+  expect(await passkeyCountOf(email)).toBe(1);
 });

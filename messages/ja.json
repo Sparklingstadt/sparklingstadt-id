@@ -52,7 +52,7 @@
       "noAccount": "Sparklingstadt IDをお持ちでない方は",
       "signupLink": "新規登録",
       "forgotLink": "パスワードを忘れた場合",
-      "passwordReset": "パスワードを再設定しました。新しいパスワードでログインしてください。",
+      "passwordReset": "パスワードを再設定しました。新しいパスワードでログインしてください。追加していたパスキーは削除しました。使う場合はもう一度追加してください。",
       "confirmFirst": "メールアドレスを確認するには、そのSparklingstadt IDでログインしてください。",
       "passkey": "パスキー（指紋）でログイン",
       "passkeyPending": "確認中…",

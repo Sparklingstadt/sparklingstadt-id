@@ -52,7 +52,7 @@
       "noAccount": "还没有 Sparklingstadt ID？",
       "signupLink": "注册",
       "forgotLink": "忘记密码？",
-      "passwordReset": "密码已重置。请使用新密码登录。",
+      "passwordReset": "密码已重置。请使用新密码登录。已添加的通行密钥已删除，如需使用请重新添加。",
       "confirmFirst": "要确认电子邮件地址，请先登录该 Sparklingstadt ID。",
       "passkey": "使用通行密钥（指纹）登录",
       "passkeyPending": "确认中…",

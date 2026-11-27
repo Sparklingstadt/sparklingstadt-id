@@ -557,7 +557,7 @@ test("resets the password from the mailed link", async ({ page }) => {
 
   await setNewPassword(page, link, "a brand new password");
   await expect(page).toHaveURL(/\/login\?reset=done$/);
-  await expect(page.getByRole("status")).toHaveText("パスワードを再設定しました。新しいパスワードでログインしてください。");
+  await expect(page.getByRole("status")).toHaveText("パスワードを再設定しました。新しいパスワードでログインしてください。追加していたパスキーは削除しました。使う場合はもう一度追加してください。");
 
   // The session from before the reset is gone.
   await page.goto("/account");

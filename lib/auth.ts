@@ -20,6 +20,7 @@ import { twoFactorPolicy } from "@/lib/id/two-factor-policy";
 import { getPrisma } from "@/lib/prisma";
 import { resetThrottle } from "@/lib/id/throttle";
 import { serverOnlyEndpoints } from "@/lib/id/server-only-endpoints";
+import { normalizeEmail, ValidationError } from "@/lib/id/validation";
 
 /** A client secret is checked against its SHA-256 hex, the form OIDC_CLIENTS has always stored (lib/id/client-import.ts). */
 function verifyClientSecret(secret: string, storedHash: string): boolean {
@@ -93,8 +94,19 @@ export const auth = betterAuth({
       // The mail proved the mailbox, and links asked for before must not outlive the old password.
       await getPrisma().user.update({ where: { id: user.id }, data: { emailVerified: true } });
       await cancelPendingLinks(user.id);
+      // A reset is the way back into an account someone else got into: a passkey they added from a stolen session
+      // must not survive it, so every passkey of the account goes (a password change keeps them). The owner adds
+      // theirs again from /account; the login page says so after the reset (Login.passwordReset).
+      await getPrisma().passkey.deleteMany({ where: { userId: user.id } });
       // Whoever holds the mailbox is not locked out by guesses from elsewhere: the per-account login count starts over.
-      await resetThrottle(`login:mail:${user.email.toLowerCase()}`);
+      // The key is the one accountThrottle counts under, which exists only for an address normalizeEmail accepts.
+      let email: string | null = null;
+      try {
+        email = normalizeEmail(user.email);
+      } catch (error) {
+        if (!(error instanceof ValidationError)) throw error;
+      }
+      if (email) await resetThrottle(`login:mail:${email}`);
     },
   },
   rateLimit: {

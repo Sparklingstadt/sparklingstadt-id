@@ -52,7 +52,7 @@
       "noAccount": "還沒有 Sparklingstadt ID？",
       "signupLink": "註冊",
       "forgotLink": "忘記密碼？",
-      "passwordReset": "密碼已重設。請使用新密碼登入。",
+      "passwordReset": "密碼已重設。請使用新密碼登入。已新增的通行金鑰已刪除，如需使用請重新新增。",
       "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。",
       "passkey": "使用通行金鑰（指紋）登入",
       "passkeyPending": "確認中…",
