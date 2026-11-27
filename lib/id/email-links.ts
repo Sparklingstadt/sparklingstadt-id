@@ -56,7 +56,11 @@ export async function forgetChangeEmailLink(userId: string): Promise<void> {
   await getPrisma().verification.deleteMany({ where: { identifier: changeKey(userId) } });
 }
 
-/** Cancels every pending email change and password reset link of the user (their password just changed). */
+/**
+ * Cancels every pending email change and password reset link of the user: after a password change or reset (links
+ * asked for before must not outlive the old password) and after an email change (a reset link mailed to the old
+ * address must not outlive the move).
+ */
 export async function cancelPendingLinks(userId: string): Promise<void> {
   await getPrisma().verification.deleteMany({
     where: { OR: [{ identifier: changeKey(userId) }, { identifier: { startsWith: "reset-password:" }, value: userId }] },

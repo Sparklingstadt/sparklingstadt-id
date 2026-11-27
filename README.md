@@ -67,8 +67,10 @@ Sparklingstadt のサービス共通のログイン窓口です。OpenID Connect
 3. `OIDC_CLIENTS` を DB（`ba_oauth_clients`）に取り込みます。サーバーはこの表を読みます。何度実行しても同じ結果になり、取り込んだクライアントのシークレットは変わりません。
 
    ```sh
-   pnpm run import:clients
+   pnpm run import:clients --env-file=production.env   # またはシェルに明示的に設定して引数なしで
    ```
+
+   `import:clients` は `import:legacy` と同じく `.env.local` を読みません。`DATABASE_URL` と `OIDC_CLIENTS` をシェルで明示的に設定するか、1 つのファイルを `--env-file=<パス>` で渡します（足りなければ止まります）。どの値がどこから来たか（値そのものではなく、シェルかファイルか）と、つなぐ DB のホスト名が出るので、取り込む先の DB か確かめます。
 
 **`OIDC_CLIENTS` から外したクライアントは、再び取り込んでも DB に残り、有効なままです。** 使えなくするには DB で無効にするか、消します（消すと、そのクライアントのトークンと同意も消えます）。
 
@@ -95,7 +97,7 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
 - 本番の値を、同じシェルで明示的に設定する（`DATABASE_URL` と `DATABASE_URL_UNPOOLED` の両方。同じ DB を指すこと）。
 - 作業のあいだ `.env.local` を別の名前にしておく。
 
-`import:legacy` は `.env.local` を読みません。次の値をシェルで明示的に設定するか、本番の値だけを書いた 1 つのファイルを `--env-file=<パス>` で渡します（どれか 1 つでも足りなければ止まります）。どの値がどこから来たか（値そのものではなく、シェルかファイルか）と、つなぐ DB のホスト名が出るので、本番の DB と同じか確かめます。
+`import:legacy` は（`import:clients` と同じく）`.env.local` を読みません。次の値をシェルで明示的に設定するか、本番の値だけを書いた 1 つのファイルを `--env-file=<パス>` で渡します（どれか 1 つでも足りなければ止まります）。どの値がどこから来たか（値そのものではなく、シェルかファイルか）と、つなぐ DB のホスト名が出るので、本番の DB と同じか確かめます。
 
 | 名前 | 値 |
 | --- | --- |
@@ -132,29 +134,29 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
 4. 新しいコードをデプロイします。
 5. `https://<issuer>/api/auth/ok` が 200 を返すことを確かめます。続けて、typle-r などのすべてのクライアントで「Sparklingstadt ID でログイン」が、同じアカウントで、設定を何も変えずに動くことを確かめます。動かなければ、Vercel の「Instant Rollback」で前のデプロイに戻せます（古い表はまだあるので、古いコードはそのまま動きます）。
 6. `/account` でパスキーを登録し、二要素認証をオンにします。ログインのセッションは切れているので、先にログインし直します。
-7. すべて確かめたら、別の PR で古いものを消します。`docs/cutover/drop-legacy-tables.sql`（`users`・`sessions`・`email_tokens`・`auth_codes` を消す SQL。`throttles` は残る）をマイグレーションにし、`schema.prisma` から `Legacy*`・`EmailToken`・`AuthCode` を消し、Vercel の古い環境変数（`OIDC_SIGNING_KEY`・`OIDC_PREVIOUS_PUBLIC_KEYS`、`OIDC_CLIENTS`）を消します。その SQL は、`users` に `ba_users` にない行が残っていると `users holds accounts that are not in ba_users yet: run "pnpm run import:legacy" first` と言って止まります（データは消えません）。
+7. すべて確かめたら、別の PR で古いものを消します。`docs/cutover/drop-legacy-tables.sql`（`users`・`sessions`・`email_tokens`・`auth_codes` を消す SQL。`throttles` は残る）を手で実行せずにマイグレーションにし（`pnpm run db:deploy` で当てる）、`schema.prisma` から `Legacy*`・`EmailToken`・`AuthCode` を消し、Vercel の古い環境変数（`OIDC_SIGNING_KEY`・`OIDC_PREVIOUS_PUBLIC_KEYS`、`OIDC_CLIENTS`）を消します。その SQL は、`users` に `ba_users` にない行が残っていると `users holds accounts that are not in ba_users yet: run "pnpm run import:legacy" first` と言って止まります（データは消えません）。
 
 ## 本番の設定
 
 1. Vercel に `sparklingstadt-id` のプロジェクトと Neon の DB を作り、`id.sparklingstadt.com` をつなぎます（DNS）。
 2. Resend で `sparklingstadt.com` を確認し、`RESEND_API_KEY` と `MAIL_FROM` を入れます。
 3. `BETTER_AUTH_SECRET` を作り（`openssl rand -base64 32`）、環境変数（上の表）を Vercel に設定します。クライアントのシークレットを作り、`OIDC_CLIENTS` に入れます。
-4. DB に表を作ります。
+4. DB に表を作ります。`db:deploy` は上の「手元から本番の DB を操作するときの約束」のとおりに、`import:clients` は本番の `DATABASE_URL` と `OIDC_CLIENTS` を明示して実行します（`.env.local` は読みません）。
 
    ```sh
    pnpm run db:deploy
-   pnpm run import:clients
+   pnpm run import:clients --env-file=production.env
    ```
 
    前の実装から移すときは、上の「本番の切り替え」の手順にします。
 
 5. 試行回数の制限は、クライアントの IP を `x-forwarded-for` から読みます（`lib/id/client-ip.ts`）。デプロイ先は Vercel だけを前提にしています。Vercel はこのヘッダーをクライアントの 1 つのアドレスで上書きするので信用できます。ほかの環境では、クライアントがヘッダーを書き換えられるため、アドレス 1 つだけの正しい値でなければ「不明」として数えます。
-6. デプロイします。
+6. デプロイします。ログインできるのは本番のドメイン（`ID_ISSUER`）だけです。Vercel のプレビューデプロイ（`*.vercel.app`）では、Better Auth が Origin を `ID_ISSUER` と比べて断り、パスキーも `rpID`（`ID_ISSUER` のホスト名）が合わないため、ログインできません。プレビューは画面を見るためだけに使います。
 7. デプロイのあと、`https://<issuer>/api/auth/ok` が 200 を返すことを確かめます（`BETTER_AUTH_SECRET` が足りないことは、ビルドでは分からず（ビルドは仮の値で通る）、最初のリクエストで初めて出ます）。続けて、自分のアカウントを登録（前の実装から移すときは上の「本番の切り替え」）し、サービスを順に移します。
 
 ## 二要素認証を DB で外す
 
-二要素認証（認証アプリの TOTP とバックアップコード）は、マイページで利用者が自分でオン・オフします。パスワードの再設定では外れません。認証アプリの端末もバックアップコードもすべて失い、パスキーでもログインできない場合は、持ち主が DB で外します。
+二要素認証（認証アプリの TOTP とバックアップコード）は、マイページで利用者が自分でオン・オフします。パスワードの再設定では外れません（パスキーは、再設定ですべて消えます。もう一度登録します）。TOTP のコードは、30 秒の有効期間のうちなら同じコードをもう一度使えます（使ったコードを覚えておく仕組みはありません。スペックも求めていません）。間違ったコードはアカウントごとに 5 回までです。認証アプリの端末もバックアップコードもすべて失い、パスキーでもログインできない場合は、持ち主が DB で外します。
 
 1. 本人であることを確かめてから、Neon の SQL エディターなどで次を実行します（`<メールアドレス>` を置き換えます）。
 
@@ -181,13 +183,13 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
 pnpm install
 docker compose up -d --wait          # Postgres（127.0.0.1:55432）
 pnpm run db:deploy
-pnpm run import:clients              # OIDC_CLIENTS を DB へ
+pnpm run import:clients --env-file=.env.local   # OIDC_CLIENTS を DB へ（.env.local は名指ししたときだけ読む）
 pnpm run dev
 ```
 
 | コマンド | 内容 |
 | --- | --- |
-| `pnpm run import:clients` | `OIDC_CLIENTS` を DB に取り込む |
+| `pnpm run import:clients` | `OIDC_CLIENTS` を DB に取り込む（値はシェルか `--env-file=<パス>` から。`.env.local` は読まない） |
 | `pnpm run import:legacy` | 前の実装の持ち主のアカウントと署名鍵を取り込む（切り替えのときだけ） |
 | `pnpm run test:unit` | 単体テスト |
 | `pnpm run test:e2e` | Playwright の E2E（`pnpm run build` のあと。サーバー・クライアント・署名鍵は自動で用意） |

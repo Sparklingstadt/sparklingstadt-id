@@ -1,5 +1,7 @@
--- Run by hand (psql / Neon SQL editor) in the follow-up PR, after the cutover is confirmed (README "本番の切り替え"),
--- then turn it into a Prisma migration together with removing the Legacy* models from schema.prisma.
+-- Not run from here. In the follow-up PR, after the cutover is confirmed (README "本番の切り替え", step 7), this file
+-- becomes a Prisma migration (prisma/migrations/<timestamp>_drop_legacy_tables/migration.sql) in the same commit that
+-- removes the Legacy* models from schema.prisma, and `pnpm run db:deploy` applies it. Do not also run it by hand: the
+-- migration would then fail on the tables that are already gone.
 -- The first implementation's tables, replaced by Better Auth's (ba_*). `throttles` stays (per-address and
 -- per-account limits).
 --
