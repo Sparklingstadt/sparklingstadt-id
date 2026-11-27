@@ -307,3 +307,24 @@ test("the 2FA page without a pending sign-in asks to log in again", async ({ pag
   await page.getByRole("link", { name: "ログインに戻る" }).click();
   await expect(page).toHaveURL(/\/login/);
 });
+
+test("asking to trust the device is ignored: the next password sign-in asks for the code again", async ({ page }) => {
+  const email = await signedInUser(page);
+  const { secret } = await enableTwoFactor(page);
+  await logOut(page);
+
+  await page.goto("/login");
+  await submitPassword(page, email);
+  await expect(page).toHaveURL(/\/two-factor(\?|$)/);
+  const response = await page.request.post("/api/auth/two-factor/verify-totp", {
+    headers: { origin: ISSUER },
+    data: { code: totp(secret), trustDevice: true },
+  });
+  expect(response.status()).toBe(200);
+  expect((await page.context().cookies()).find((cookie) => cookie.name.endsWith("trust_device"))).toBeUndefined();
+  await logOut(page);
+
+  await page.goto("/login");
+  await submitPassword(page, email);
+  await expect(page).toHaveURL(/\/two-factor(\?|$)/);
+});

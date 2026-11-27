@@ -16,6 +16,7 @@ import { credentialDeps, verifyCredential } from "@/lib/id/credential";
 import { hashPassword } from "@/lib/password";
 import { oidcCompat } from "@/lib/id/oidc-compat";
 import { hashToken } from "@/lib/id/tokens";
+import { twoFactorPolicy } from "@/lib/id/two-factor-policy";
 import { getPrisma } from "@/lib/prisma";
 import { resetThrottle } from "@/lib/id/throttle";
 
@@ -150,7 +151,9 @@ export const auth = betterAuth({
     // with the password. It turns on only once a first code from the app is confirmed (skipVerificationOnEnable is
     // left off). While on, a password sign-in makes no session until /two-factor/verify-totp or
     // /two-factor/verify-backup-code accepts a code (app/[locale]/two-factor). No codes by mail or SMS (no otpOptions)
-    // and no "trust this device" (the login page never sends trustDevice). A password reset does not turn it off.
+    // and no "trust this device" (twoFactorPolicy drops trustDevice from every request). A password reset does not
+    // turn it off.
+    twoFactorPolicy(),
     twoFactor({
       issuer: "Sparklingstadt ID",
       backupCodeOptions: { amount: 10 },
