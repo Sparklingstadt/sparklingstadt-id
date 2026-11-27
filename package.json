@@ -9,7 +9,6 @@
     "lint": "eslint",
     "test:e2e": "playwright test",
     "import:clients": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-clients.ts",
-    "import:legacy": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-legacy.ts",
     "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"tests/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
