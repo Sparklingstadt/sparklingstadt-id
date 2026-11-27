@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, request as playwrightRequest, test, type APIRequestContext, type Page } from "@playwright/test";
 import { newEmail, PASSWORD, signedInUser, signUp, testIp } from "./helpers/account";
 import { ageSession, passkeyCountOf, sessionExists } from "./helpers/db";
 import { lastMailTo } from "./helpers/mail-log";
@@ -378,4 +378,53 @@ test("the 6th wrong password in the passkey form is throttled", async ({ page })
   await area.getByRole("button", { name: "パスキーを追加" }).click();
   await expect(area.getByRole("alert")).toHaveText("試行回数が多すぎます。しばらくしてからお試しください。");
   expect(await passkeyCountOf(email)).toBe(0);
+});
+
+test("a copy of the session cookie without the nonce cookie cannot use the grant", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  const email = await signedInUser(page);
+  // The victim has just typed the password: the grant is made, the browser's own request is held back.
+  await page.route("**/passkey/generate-register-options*", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+  await page.goto("/account");
+  await passkeyArea(page).getByLabel("今のパスワード").fill(PASSWORD);
+  await passkeyArea(page).getByRole("button", { name: "パスキーを追加" }).click();
+  await expect(passkeyArea(page).getByRole("alert")).toBeVisible();
+
+  const cookies = await page.context().cookies();
+  const nonce = cookies.find((cookie) => cookie.name === "passkey_add_grant");
+  expect(nonce?.httpOnly).toBe(true);
+  expect(nonce?.sameSite).toBe("Strict");
+  expect(nonce?.path).toBe("/api/auth/passkey");
+  const thief = await playwrightRequest.newContext({
+    baseURL: ISSUER,
+    extraHTTPHeaders: { "x-forwarded-for": testIp() },
+    storageState: { cookies: cookies.filter((cookie) => cookie.name !== "passkey_add_grant"), origins: [] },
+  });
+  try {
+    const options = await thief.get(GENERATE);
+    expect(options.status()).toBe(403);
+    expect((await options.json()).code).toBe("PASSWORD_REQUIRED");
+    const verify = await thief.post(VERIFY, { headers: { Origin: ISSUER }, data: { response: {} } });
+    expect(verify.status()).toBe(403);
+    // Nor did the attempt spend the owner's grant.
+    expect((await page.request.get(GENERATE)).status()).toBe(200);
+  } finally {
+    await thief.dispose();
+  }
+  expect(await passkeyCountOf(email)).toBe(0);
+});
+
+test("the nonce cookie is cleared once the grant is used", async ({ page }) => {
+  await withoutConditionalUi(page);
+  await addVirtualAuthenticator(page);
+  await signedInUser(page);
+  await addPasskey(page, "クッキーを消す指紋");
+  const names = (await page.context().cookies()).map((cookie) => cookie.name);
+  expect(names).not.toContain("passkey_add_grant");
+});
+
+test("the registration endpoints answer 401 with no session at all", async ({ request }) => {
+  expect((await request.get(GENERATE)).status()).toBe(401);
+  expect((await request.post(VERIFY, { headers: { Origin: ISSUER }, data: { response: {} } })).status()).toBe(401);
 });

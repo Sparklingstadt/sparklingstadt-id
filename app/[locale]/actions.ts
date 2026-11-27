@@ -3,6 +3,7 @@
 import { hasLocale } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { refresh } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPathname } from "@/i18n/navigation";
 import { routing, type Locale } from "@/i18n/routing";
@@ -18,6 +19,7 @@ import {
   resetPassword,
   signUp,
 } from "@/lib/id/accounts";
+import { PASSKEY_GRANT_COOKIE, PASSKEY_GRANT_MINUTES, PASSKEY_GRANT_PATH } from "@/lib/id/passkey-grant";
 import { LOGOUT_PARAMS, resolvePostLogoutRedirect } from "@/lib/id/logout";
 import { destroySession, getCurrentUser } from "@/lib/id/session";
 import { verifyLoginPath } from "./_components/verify-path";
@@ -194,8 +196,19 @@ export type PasskeyGrantResult = "ok" | "wrongPassword" | "throttled";
 export async function grantPasskeyAddAction(locale: Locale, password: string): Promise<PasskeyGrantResult> {
   const current = await getCurrentUser();
   if (!current) redirect(getPathname({ href: "/login", locale: hasLocale(routing.locales, locale) ? locale : routing.defaultLocale }));
+  if (typeof password !== "string") return "wrongPassword";
   try {
-    return await grantPasskeyAdd(current.session.id, password);
+    const granted = await grantPasskeyAdd(current.session.id, password);
+    if (granted === "wrongPassword") return granted;
+    // The grant belongs to this browser: only it holds the nonce (see lib/id/passkey-grant.ts).
+    (await cookies()).set(PASSKEY_GRANT_COOKIE, granted.nonce, {
+      httpOnly: true,
+      secure: process.env.ID_ISSUER?.startsWith("https:") ?? false,
+      sameSite: "strict",
+      path: PASSKEY_GRANT_PATH,
+      maxAge: PASSKEY_GRANT_MINUTES * 60,
+    });
+    return "ok";
   } catch (error) {
     if (isThrottled(error)) return "throttled";
     throw error;
