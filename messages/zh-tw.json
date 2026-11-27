@@ -97,6 +97,7 @@
       "twoFactorLead": "開啟後，使用密碼登入時還需要輸入驗證器應用程式的驗證碼。使用通行金鑰登入時不需要驗證碼。",
       "twoFactorOn": "雙重驗證已開啟。",
       "twoFactorOff": "雙重驗證已關閉。",
+      "twoFactorVerifyFirst": "若要開啟雙重驗證，請先確認電子郵件地址。",
       "twoFactorEnable": "開啟雙重驗證",
       "twoFactorScan": "請用驗證器應用程式（Google Authenticator、Microsoft Authenticator 等）掃描此 QR 碼。",
       "twoFactorQrAlt": "驗證器應用程式的 QR 碼",

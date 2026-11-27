@@ -97,6 +97,7 @@
       "twoFactorLead": "オンにすると、パスワードでログインするときに、認証アプリのコードも入力します。パスキーでのログインではコードは不要です。",
       "twoFactorOn": "二要素認証はオンです。",
       "twoFactorOff": "二要素認証はオフです。",
+      "twoFactorVerifyFirst": "二要素認証をオンにするには、先にメールアドレスを確認してください。",
       "twoFactorEnable": "二要素認証をオンにする",
       "twoFactorScan": "認証アプリ（Google Authenticator、Microsoft Authenticator など）でこの QR コードを読み取ってください。",
       "twoFactorQrAlt": "認証アプリ用の QR コード",

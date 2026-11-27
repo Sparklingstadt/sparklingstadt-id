@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { PASSWORD, signedInUser, testIp } from "./helpers/account";
+import { newEmail, PASSWORD, signedInUser, signUp, testIp } from "./helpers/account";
 import { authCodeCountOf, sessionCountOf, sessionExists, userIdOf } from "./helpers/db";
 import { lastMailTo, readMails } from "./helpers/mail-log";
 import { signedOAuthQuery } from "./helpers/oauth-query";
@@ -356,4 +356,26 @@ test("asking to trust the device is ignored: the next password sign-in asks for 
   await page.goto("/login");
   await submitPassword(page, email);
   await expect(page).toHaveURL(/\/two-factor(\?|$)/);
+});
+
+test("an account whose address is not confirmed cannot turn 2FA on", async ({ page }) => {
+  // Whoever signs up with someone else's address must not leave a second factor behind: a password reset by the
+  // owner of the mailbox keeps 2FA, so the owner could never sign in.
+  const email = newEmail();
+  await signUp(page, email);
+  await page.goto("/login");
+  await submitPassword(page, email);
+  await expect(page).toHaveURL(/\/account$/);
+
+  const area = section(page);
+  await expect(area.getByText("二要素認証をオンにするには、先にメールアドレスを確認してください。")).toBeVisible();
+  await expect(area.getByRole("button", { name: "二要素認証をオンにする" })).toHaveCount(0);
+
+  // The endpoint itself refuses, whatever the page shows.
+  const answer = await page.request.post("/api/auth/two-factor/enable", {
+    headers: { origin: ISSUER },
+    data: { password: PASSWORD },
+  });
+  expect(answer.status()).toBe(403);
+  expect((await answer.json()).code).toBe("EMAIL_NOT_VERIFIED");
 });

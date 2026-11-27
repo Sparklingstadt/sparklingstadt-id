@@ -103,11 +103,13 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
       />
       <TwoFactorSection
         enabled={user.twoFactorEnabled}
+        verified={user.emailVerified}
         labels={{
           heading: t("Account.twoFactorHeading"),
           lead: t("Account.twoFactorLead"),
           on: t("Account.twoFactorOn"),
           off: t("Account.twoFactorOff"),
+          verifyFirst: t("Account.twoFactorVerifyFirst"),
           password: t("Account.currentPassword"),
           enable: t("Account.twoFactorEnable"),
           scan: t("Account.twoFactorScan"),

@@ -94,6 +94,7 @@ test("keeps full-width characters and surrounding spaces in the password as type
   await expect(page.getByRole("heading", { name: "メールアドレスを確認しました" })).toBeVisible();
   await page.goto("/account");
   await page.getByRole("button", { name: "ログアウト" }).click();
+  await expect(page).toHaveURL(/\/login$/);
 
   // Nothing was trimmed: the trimmed input is a different password.
   await logIn(page, email, password.trim());
@@ -143,7 +144,12 @@ test("rejects a wrong password with one message", async ({ page }) => {
 test("throttles logins of one address after 5 wrong passwords", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
-  for (let attempt = 0; attempt < 5; attempt += 1) await logIn(page, email, "wrong password!!");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await logIn(page, email, "wrong password!!");
+    // Wait for the answer: opening the login page again before it arrives cancels the request, and a cancelled
+    // sign-in is not counted.
+    await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
+  }
   await logIn(page, email);
   await expect(page.locator("form [role=alert]")).toHaveText("試行回数が多すぎます。しばらくしてからお試しください。");
   await expect(page).toHaveURL(/\/login$/);
@@ -191,7 +197,8 @@ test("an account refuses logins after 30 attempts from anywhere, until its passw
 test("unverified users see the resend notice", async ({ page }) => {
   const email = newEmail();
   await signUp(page, email);
-  const first = await lastMailTo(email, "verify");
+  // The sign-up mail is in the log before the mails are counted below.
+  await lastMailTo(email, "verify");
 
   await logIn(page, email);
   await expect(page).toHaveURL(/\/account$/);
@@ -199,8 +206,9 @@ test("unverified users see the resend notice", async ({ page }) => {
   await page.getByRole("button", { name: "確認メールを再送" }).click();
   await expect(page.getByRole("status")).toHaveText("確認メールを再送しました。");
 
+  // A new mail, found by its place in the log: its link is the same as the first one's when both were made within
+  // the same second (the token carries the time in seconds).
   const resent = await lastMailTo(email, "verify", { after: before });
-  expect(resent.link).not.toBe(first.link);
   await confirmEmailLink(page, resent.link);
   await expect(page.getByRole("heading", { name: "メールアドレスを確認しました" })).toBeVisible();
   await page.goto("/account");
@@ -219,6 +227,7 @@ test("login returns to next", async ({ page }) => {
   await logIn(page, email, PASSWORD, "/login?next=%2F%2Fevil.example");
   await expect(page).toHaveURL(/localhost:3000\/account$/);
   await page.getByRole("button", { name: "ログアウト" }).click();
+  await expect(page).toHaveURL(/\/login$/);
 
   await logIn(page, email, PASSWORD, "/login?next=https%3A%2F%2Fevil.example%2F");
   await expect(page).toHaveURL(/localhost:3000\/account$/);
@@ -323,6 +332,7 @@ test("changes the email after the new address is confirmed", async ({ page }) =>
   await expect(page.getByRole("button", { name: "確認メールを再送" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "ログアウト" }).click();
+  await expect(page).toHaveURL(/\/login$/);
   await logIn(page, oldEmail);
   await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
   await logIn(page, nextEmail);
@@ -471,6 +481,7 @@ test("changes the password and signs out the other sessions", async ({ page, bro
   await page.goto("/account");
   await expect(page).toHaveURL(/\/account$/);
   await page.getByRole("button", { name: "ログアウト" }).click();
+  await expect(page).toHaveURL(/\/login$/);
   await logIn(page, email);
   await expect(page.locator("form [role=alert]")).toHaveText("メールアドレスまたはパスワードが正しくありません。");
   await logIn(page, email, "a brand new password");
@@ -520,6 +531,7 @@ test("throttles wrong current passwords across both forms", async ({ page }) => 
 
   // The password was not changed while throttled.
   await page.getByRole("button", { name: "ログアウト" }).click();
+  await expect(page).toHaveURL(/\/login$/);
   await logIn(page, email);
   await expect(page).toHaveURL(/\/account$/);
 });
