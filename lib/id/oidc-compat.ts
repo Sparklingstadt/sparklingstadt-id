@@ -306,6 +306,9 @@ export function oidcCompat() {
         {
           // Signing in again over a session (prompt=login) replaces it rather than leaving its row behind: a copy of
           // the old cookie must not stay signed in. A passkey sign-in is the same (its endpoint is not under /sign-in/).
+          // With 2FA on, the password step already ends the old session here: this plugin comes before twoFactor in
+          // lib/auth.ts, so this hook still sees the session the password made before twoFactor drops it and the
+          // cookie. The session that /two-factor/verify-* makes later then replaces nothing that is left.
           matcher: (ctx) => (ctx.path ?? "").startsWith("/sign-in/") || ctx.path === "/passkey/verify-authentication",
           handler: createAuthMiddleware(async (ctx) => {
             const created = ctx.context.newSession;

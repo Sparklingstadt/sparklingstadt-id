@@ -89,3 +89,38 @@ test("every rule path is listed once and other paths are not throttled", async (
   assert.equal(await consumeRules("/get-session", info, store), true);
   assert.equal(counts.size, 0);
 });
+
+test("2FA codes at sign-in are 5 per account across TOTP and backup codes, and reset on success", async () => {
+  const { store, counts } = memoryStore();
+  const user = { ...info, userId: "u1" };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    assert.equal(await consumeRules("/two-factor/verify-totp", user, store), true);
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    assert.equal(await consumeRules("/two-factor/verify-backup-code", { ...user, ip: `198.51.100.${attempt}` }, store), true);
+  }
+  assert.equal(await consumeRules("/two-factor/verify-totp", user, store), false);
+  assert.deepEqual([...counts.keys()], ["2fa:account:u1"]);
+  await resetRules("/two-factor/verify-backup-code", user, store);
+  assert.equal(counts.has("2fa:account:u1"), false);
+});
+
+test("2FA codes without a known user count nothing", async () => {
+  const { store, counts } = memoryStore();
+  assert.equal(await consumeRules("/two-factor/verify-totp", info, store), true);
+  assert.equal(counts.size, 0);
+});
+
+test("turning 2FA on or off and making new backup codes use the password confirmation count", async () => {
+  const { store, counts } = memoryStore();
+  const user = { ...info, userId: "u1" };
+  await consumeRules("/two-factor/enable", user, store);
+  await consumeRules("/two-factor/disable", user, store);
+  await consumeRules("/two-factor/generate-backup-codes", user, store);
+  await consumeRules("/two-factor/get-totp-uri", user, store);
+  assert.equal(await consumeRules("/verify-password", user, store), true);
+  assert.equal(await consumeRules("/two-factor/enable", user, store), false);
+  assert.deepEqual([...counts.keys()], ["pwcheck:user:u1"]);
+  await resetRules("/two-factor/disable", user, store);
+  assert.equal(counts.has("pwcheck:user:u1"), false);
+});

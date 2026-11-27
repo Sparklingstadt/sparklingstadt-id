@@ -5,6 +5,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { jwt } from "better-auth/plugins/jwt";
+import { twoFactor } from "better-auth/plugins/two-factor";
 import { after } from "next/server";
 import { accountThrottle } from "@/lib/id/account-throttle";
 import { mailHooks } from "@/lib/id/auth-mail";
@@ -94,7 +95,9 @@ export const auth = betterAuth({
     enabled: true,
     storage: "database",
     // The per-IP tier for signing in (the browser calls it); the per-address and per-account limits are accountThrottle.
-    customRules: { "/sign-in/email": { window: 60, max: 20 } },
+    // The second step of signing in has the same per-IP tier (the plugin's own is 3 in 10 seconds, which a mistyped
+    // code or two would hit); the per-account limit on codes is accountThrottle's.
+    customRules: { "/sign-in/email": { window: 60, max: 20 }, "/two-factor/*": { window: 60, max: 20 } },
   },
   plugins: [
     accountThrottle(),
@@ -135,12 +138,24 @@ export const auth = betterAuth({
       },
     }),
     // Passkeys are registered only while signed in (the plugin's default), from /account. A passkey is the user's
-    // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code.
+    // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code: twoFactor below
+    // holds back only the password sign-in (/sign-in/email), not /passkey/verify-authentication.
     passkey({
       rpID: new URL(baseURL).hostname,
       rpName: "Sparklingstadt ID",
       origin: baseURL,
       authenticatorSelection: { residentKey: "required", userVerification: "required" },
+    }),
+    // Two-factor authentication: a TOTP app and 10 one-time backup codes, turned on and off by the user from /account
+    // with the password. It turns on only once a first code from the app is confirmed (skipVerificationOnEnable is
+    // left off). While on, a password sign-in makes no session until /two-factor/verify-totp or
+    // /two-factor/verify-backup-code accepts a code (app/[locale]/two-factor). No codes by mail or SMS (no otpOptions)
+    // and no "trust this device" (the login page never sends trustDevice). A password reset does not turn it off.
+    twoFactor({
+      issuer: "Sparklingstadt ID",
+      backupCodeOptions: { amount: 10 },
+      allowPasswordless: false,
+      skipVerificationOnEnable: false,
     }),
     // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
     nextCookies(),

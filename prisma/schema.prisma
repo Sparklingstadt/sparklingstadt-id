@@ -91,13 +91,15 @@ model Throttle {
 // Better Auth's core tables. Model names are the ones Better Auth looks up (user, session, ...);
 // table names keep the ba_ prefix so they stay apart from the legacy tables until those are dropped.
 model User {
-  id            String   @id
-  name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false) @map("email_verified")
-  image         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  id               String   @id
+  name             String
+  email            String   @unique
+  emailVerified    Boolean  @default(false) @map("email_verified")
+  image            String?
+  // twoFactor plugin: on once the first TOTP is confirmed (lib/auth.ts).
+  twoFactorEnabled Boolean? @default(false) @map("two_factor_enabled")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
   sessions           Session[]
   accounts           Account[]
@@ -106,6 +108,7 @@ model User {
   oauthAccessTokens  OauthAccessToken[]
   oauthConsents      OauthConsent[]
   passkeys           Passkey[]
+  twoFactors         TwoFactor[]
 
   @@map("ba_users")
 }
@@ -379,4 +382,21 @@ model Passkey {
 
   @@index([userId])
   @@map("ba_passkeys")
+}
+
+/// The twoFactor plugin's TOTP secret and backup codes, both encrypted with BETTER_AUTH_SECRET.
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String    @map("backup_codes")
+  userId                  String    @map("user_id")
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0) @map("failed_verification_count")
+  lockedUntil             DateTime? @map("locked_until")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("ba_two_factors")
 }

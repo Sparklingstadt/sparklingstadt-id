@@ -21,12 +21,16 @@ export type ThrottleInfo = {
 };
 
 type Key = { key: string; limit: number; resetOnSuccess?: boolean };
-export type ThrottleRule = { path: string; keys: (info: ThrottleInfo) => Key[] };
+/** `perUser`: the keys need the user (ThrottleInfo.userId), read from the session or the pending 2FA sign-in. */
+export type ThrottleRule = { path: string; keys: (info: ThrottleInfo) => Key[]; perUser?: boolean };
 
 /** The key formats are the ones the earlier lib/id/accounts.ts used, so counters carry over a deploy. */
 const perIp = (prefix: string, limit = 10) => (info: ThrottleInfo): Key[] => [{ key: `${prefix}:${info.ip}`, limit }];
 const passwordCheck = (info: ThrottleInfo): Key[] =>
   info.userId ? [{ key: `pwcheck:user:${info.userId}`, limit: 5, resetOnSuccess: true }] : [];
+// The second step of a sign-in: 5 wrong codes per account (TOTP and backup codes together), counted again after a success.
+const twoFactorCode = (info: ThrottleInfo): Key[] =>
+  info.userId ? [{ key: `2fa:account:${info.userId}`, limit: 5, resetOnSuccess: true }] : [];
 
 export const throttleRules: ThrottleRule[] = [
   {
@@ -44,8 +48,15 @@ export const throttleRules: ThrottleRule[] = [
   { path: "/change-email", keys: (info) => perIp("emailchange:ip")(info) },
   { path: "/request-password-reset", keys: (info) => perIp("reset:ip")(info) },
   // Checking the current password: 5 wrong ones per account across both forms.
-  { path: "/change-password", keys: passwordCheck },
-  { path: "/verify-password", keys: passwordCheck },
+  { path: "/change-password", keys: passwordCheck, perUser: true },
+  { path: "/verify-password", keys: passwordCheck, perUser: true },
+  // Turning 2FA on or off and the other 2FA forms that take the password count with the password checks above.
+  { path: "/two-factor/enable", keys: passwordCheck, perUser: true },
+  { path: "/two-factor/disable", keys: passwordCheck, perUser: true },
+  { path: "/two-factor/generate-backup-codes", keys: passwordCheck, perUser: true },
+  { path: "/two-factor/get-totp-uri", keys: passwordCheck, perUser: true },
+  { path: "/two-factor/verify-totp", keys: twoFactorCode, perUser: true },
+  { path: "/two-factor/verify-backup-code", keys: twoFactorCode, perUser: true },
 ];
 
 const ruleFor = (path: string) => throttleRules.find((rule) => rule.path === path);
@@ -114,11 +125,22 @@ export function accountThrottle(store: ThrottleStore = tableStore): BetterAuthPl
 }
 
 async function infoOf(ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]): Promise<ThrottleInfo> {
-  const needsUser = ruleFor(ctx.path)?.keys({ ip: "", userId: "x" }).some((entry) => entry.key.startsWith("pwcheck:"));
   let userId: string | undefined;
-  if (needsUser) {
+  if (ruleFor(ctx.path)?.perUser) {
     const session = ctx.context.newSession ?? (await getSessionFromCtx(ctx).catch(() => null));
-    userId = session?.user.id;
+    userId = session?.user.id ?? (await pendingTwoFactorUser(ctx));
   }
   return { ...addressOf(ctx.body), ip: clientIp(ctx.headers ?? new Headers()), userId };
+}
+
+/**
+ * The user of a password sign-in that waits for its 2FA code: the twoFactor plugin keeps no session until then, only
+ * its signed `two_factor` cookie, which names a verification row holding the user's id.
+ */
+async function pendingTwoFactorUser(ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]): Promise<string | undefined> {
+  const cookie = ctx.context.createAuthCookie("two_factor");
+  const identifier = await ctx.getSignedCookie(cookie.name, ctx.context.secret).catch(() => null);
+  if (!identifier) return undefined;
+  const row = await ctx.context.internalAdapter.findVerificationValue(identifier).catch(() => null);
+  return row && new Date(row.expiresAt).getTime() > Date.now() ? row.value : undefined;
 }
