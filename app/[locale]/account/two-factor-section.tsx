@@ -5,7 +5,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 type Labels = Record<
-  | "heading" | "lead" | "on" | "off" | "password" | "enable" | "scan" | "qrAlt" | "manual" | "code" | "confirm"
+  | "heading" | "lead" | "on" | "off" | "verifyFirst" | "password" | "enable" | "scan" | "qrAlt" | "manual" | "code" | "confirm"
   | "backupHeading" | "backupLead" | "regenerate" | "disable" | "pending" | "failed" | "wrongPassword" | "wrongCode"
   | "throttled",
   string
@@ -17,9 +17,18 @@ type ApiError = { status: number; code?: string } | null;
 /**
  * Two-factor authentication on the account page. On: the password, then the QR code (and the key to type in), then
  * one code from the app; the backup codes are shown then, once. They can be made again later. Off: the password.
- * Every step here takes the password, so none of them asks for a recent sign-in.
+ * Every step here takes the password, so none of them asks for a recent sign-in. Turning it on needs a confirmed
+ * address (twoFactorPolicy in lib/id/two-factor-policy.ts refuses the request otherwise).
  */
-export function TwoFactorSection({ enabled: initiallyEnabled, labels }: { enabled: boolean; labels: Labels }) {
+export function TwoFactorSection({
+  enabled: initiallyEnabled,
+  verified,
+  labels,
+}: {
+  enabled: boolean;
+  verified: boolean;
+  labels: Labels;
+}) {
   const [enabled, setEnabled] = useState(initiallyEnabled);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -137,7 +146,9 @@ export function TwoFactorSection({ enabled: initiallyEnabled, labels }: { enable
         </form>
       ) : null}
 
-      {!enabled && !setup ? (
+      {!enabled && !setup && !verified ? <p>{labels.verifyFirst}</p> : null}
+
+      {!enabled && !setup && verified ? (
         <form className="id-form" onSubmit={start}>
           {passwordField}
           {alert}
