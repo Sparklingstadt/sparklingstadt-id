@@ -369,6 +369,7 @@
 - [ ] **Step 3: 実装する。** `lib/id/legacy-import.ts` と `scripts/import-legacy.ts` を書く。
 - [ ] **Step 4: 通ることを確かめる。** `pnpm exec playwright test e2e/legacy-import.spec.ts` が PASS。
 - [ ] **Step 5: 古いものを消す。** 古い表のマイグレーションとコードを消し、`legacy-import.spec.ts` を、マイグレーションの前の状態を作るヘルパーで動くように直す（作る人の判断。難しければこの spec はコミット 1 つ前に残し、README に「取り込み済み」と書いてもよい）。
+  - 実施の記録（2026-11-27）：古い表はマイグレーション `20261127120000_drop_legacy_tables` で消した。`import:legacy`・`lib/id/legacy-import.ts`・その単体テストと E2E も消した。E2E の `import:clients` のテストは `e2e/import-clients.spec.ts` に移した。
 - [ ] **Step 6: README と `.env.example` を直す。** 本番の切り替えの手順は設計書の 5 章のとおりに書く。
 - [ ] **Step 7: 全体を確かめる。** `pnpm run test:regression`（lint・unit・build・e2e）が PASS し、`rg -n "FFPF|Candy Rain" app lib messages` が 0 件。
 - [ ] **Step 8: コミットする。** `git commit -m "持ち主のアカウントとクライアントの取り込みを足し、古い実装と表を消す"`

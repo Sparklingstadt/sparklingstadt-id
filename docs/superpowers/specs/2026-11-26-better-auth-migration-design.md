@@ -190,6 +190,8 @@
 4. `/account` でパスキーを登録し、二要素認証をオンにする。
 5. 古い環境変数（`OIDC_CLIENTS`・`OIDC_SIGNING_KEY`・`OIDC_PREVIOUS_PUBLIC_KEYS`）と古い表を消す。
 
+**実施の記録（2026-11-27）**：1〜4 は済み。5 は、古い表をマイグレーション `20261127120000_drop_legacy_tables` で消し、取り込みのスクリプト（`import:legacy`）と `OIDC_SIGNING_KEY` の読み取りを消した（`OIDC_PREVIOUS_PUBLIC_KEYS` はもともとどこも読んでいなかった）。`OIDC_CLIENTS` は、4.1 では外すとしていたが、クライアントの登録の手順（`pnpm run import:clients`）が今も読むので残した。サーバーは読まない。
+
 ## 6. 作る人に任せること
 
 - 画面の見た目と文言（パスキー・二要素認証の欄、コードの画面）。今の画面の作りにそろえる。
