@@ -118,6 +118,23 @@ export const auth = betterAuth({
       // The session JWT (/token and the set-auth-jwt header) is not offered: the keys sign ID tokens only.
       disableSettingJwtHeader: true,
     }),
+    // Two-factor authentication: a TOTP app and 10 one-time backup codes, turned on and off by the user from /account
+    // with the password. It turns on only once a first code from the app is confirmed (skipVerificationOnEnable is
+    // left off). While on, a password sign-in makes no session until /two-factor/verify-totp or
+    // /two-factor/verify-backup-code accepts a code (app/[locale]/two-factor). No codes by mail or SMS (no otpOptions)
+    // and no "trust this device" (twoFactorPolicy drops trustDevice from every request). A password reset does not
+    // turn it off. A TOTP code is accepted again within its 30-second window (Better Auth keeps no record of used
+    // codes; the spec does not ask for one); the per-account limit of wrong codes is accountThrottle's.
+    // Before oauthProvider, so that its after-hook on a password sign-in drops the session (and the cookie) before
+    // oauthProvider's after-hook looks for one to resume an authorization with: that hook then finds no session and
+    // issues no code. oidcCompat refuses every oauth_query before that (the guard that counts); this is the second line.
+    twoFactorPolicy(),
+    twoFactor({
+      issuer: "Sparklingstadt ID",
+      backupCodeOptions: { amount: 10 },
+      allowPasswordless: false,
+      skipVerificationOnEnable: false,
+    }),
     oauthProvider({
       // Never used: lib/id/oidc-compat.ts sends the user to the login page with the authorize URL in `next`, takes
       // out the prompt values that lead to the plugin's own pages, and blocks its signed-query continuations.
@@ -146,26 +163,13 @@ export const auth = betterAuth({
       },
     }),
     // Passkeys are registered only while signed in (the plugin's default), from /account. A passkey is the user's
-    // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code: twoFactor below
+    // fingerprint or face on the device, so sign-in with one is never followed by the 2FA code: twoFactor above
     // holds back only the password sign-in (/sign-in/email), not /passkey/verify-authentication.
     passkey({
       rpID: new URL(baseURL).hostname,
       rpName: "Sparklingstadt ID",
       origin: baseURL,
       authenticatorSelection: { residentKey: "required", userVerification: "required" },
-    }),
-    // Two-factor authentication: a TOTP app and 10 one-time backup codes, turned on and off by the user from /account
-    // with the password. It turns on only once a first code from the app is confirmed (skipVerificationOnEnable is
-    // left off). While on, a password sign-in makes no session until /two-factor/verify-totp or
-    // /two-factor/verify-backup-code accepts a code (app/[locale]/two-factor). No codes by mail or SMS (no otpOptions)
-    // and no "trust this device" (twoFactorPolicy drops trustDevice from every request). A password reset does not
-    // turn it off.
-    twoFactorPolicy(),
-    twoFactor({
-      issuer: "Sparklingstadt ID",
-      backupCodeOptions: { amount: 10 },
-      allowPasswordless: false,
-      skipVerificationOnEnable: false,
     }),
     // nextCookies must stay last: it lets Server Actions write the cookies Better Auth sets.
     nextCookies(),

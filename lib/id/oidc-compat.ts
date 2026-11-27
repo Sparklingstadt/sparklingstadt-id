@@ -136,7 +136,16 @@ export function oidcCompat() {
         },
         {
           // The plugin resumes an authorization after any sign-in whose body carries a signed oauth_query. Nothing
-          // here sends one, so a request that does is refused before the plugin reads it.
+          // here sends one, so a request that does is refused before the plugin reads it. This guard is the one that
+          // counts: the plugin's after-hook on a sign-in reads the session from the response's cookie and re-enters
+          // /oauth2/authorize with the signed query, and with 2FA on the password step makes a session that twoFactor
+          // drops only afterwards. Had oauthProvider's after-hook run first, a code would have been issued with that
+          // half-made session, before any second factor. Behind this guard, lib/auth.ts puts twoFactor before
+          // oauthProvider on purpose (its after-hook has dropped the session and the cookie by then, so the plugin
+          // finds none), and, by accident, the authorize hook below reads a POST's body, which for a sign-in that
+          // re-enters /oauth2/authorize holds no client_id. e2e two-factor.spec.ts sends a validly signed query
+          // (signed with BETTER_AUTH_SECRET, as the plugin signs it): with this guard off, the old plugin order and
+          // an authorize hook that read the query, it saw a code issued.
           matcher: (ctx) => {
             const body = ctx.body as Record<string, unknown> | undefined;
             return typeof body === "object" && body !== null && "oauth_query" in body;

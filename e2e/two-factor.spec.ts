@@ -1,8 +1,9 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PASSWORD, signedInUser, testIp } from "./helpers/account";
-import { sessionExists } from "./helpers/db";
+import { authCodeCountOf, sessionCountOf, sessionExists, userIdOf } from "./helpers/db";
 import { lastMailTo, readMails } from "./helpers/mail-log";
+import { signedOAuthQuery } from "./helpers/oauth-query";
 import { secretOf, totp, wrongTotp } from "./helpers/totp";
 
 const ISSUER = "http://localhost:3000";
@@ -235,6 +236,34 @@ test("authorize with password and 2FA does not issue a code before the TOTP", as
   const callback = new URL(page.url());
   expect(callback.searchParams.get("code")).toMatch(CODE);
   expect(callback.searchParams.get("state")).toBe(params.get("state"));
+});
+
+// The load-bearing refusal in lib/id/oidc-compat.ts: with a validly signed oauth_query (signed as the plugin signs it,
+// with BETTER_AUTH_SECRET), the plugin's after-hook on the sign-in would issue a code with the session the password
+// step makes, before twoFactor drops it and before any code from the app.
+test("a password sign-in with a validly signed oauth_query is refused for a 2FA account: no code, no session", async ({
+  page,
+  request,
+}) => {
+  const email = await signedInUser(page);
+  await enableTwoFactor(page);
+  const userId = (await userIdOf(email)) as string;
+  const sessionsBefore = await sessionCountOf(userId);
+  const oauthQuery = await signedOAuthQuery(authorizeParams());
+
+  const response = await request.post("/api/auth/sign-in/email", {
+    headers: { Origin: ISSUER },
+    data: { email, password: PASSWORD, oauth_query: oauthQuery },
+    maxRedirects: 0,
+  });
+  const body = await response.text();
+  expect(response.status(), body).toBe(400);
+  expect(body).not.toContain("code=");
+  expect(response.headers().location ?? "").toBe("");
+  const sessionCookie = (response.headers()["set-cookie"] ?? "").match(/session_token=([^;]*)/);
+  expect(sessionCookie?.[1] ?? "").toBe("");
+  expect(await authCodeCountOf(userId)).toBe(0);
+  expect(await sessionCountOf(userId)).toBe(sessionsBefore);
 });
 
 test("prompt=login with 2FA ends the replaced session and issues the code after the TOTP", async ({ page }) => {
