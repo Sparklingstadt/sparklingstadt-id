@@ -20,8 +20,10 @@ if (unknownArgs.length > 0) {
 }
 const file = fileArg ? parseEnv(readFileSync(fileArg.slice("--env-file=".length), "utf8")) : undefined;
 const source = file ? `file ${fileArg!.slice("--env-file=".length)}` : "shell";
-const values = Object.fromEntries(REQUIRED.map((name) => [name, (file ? file[name] : process.env[name])?.trim() ?? ""]));
-const missing = REQUIRED.filter((name) => !values[name]);
+// Values are used as they are: the server takes BETTER_AUTH_SECRET byte for byte, so the key must be encrypted with
+// that exact string (surrounding whitespace included). Trimming is only for the check that a value is set.
+const values = Object.fromEntries(REQUIRED.map((name) => [name, (file ? file[name] : process.env[name]) ?? ""]));
+const missing = REQUIRED.filter((name) => !values[name].trim());
 if (missing.length > 0) {
   console.error(
     `Set ${missing.join(", ")} explicitly in the shell, or in a file given as --env-file=<path>. ` +
@@ -38,7 +40,8 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: valu
 try {
   const result = await importLegacy(prisma as unknown as LegacyStore, {
     OIDC_CLIENTS: values.OIDC_CLIENTS,
-    OIDC_SIGNING_KEY: values.OIDC_SIGNING_KEY,
+    // JSON, so surrounding whitespace carries no meaning.
+    OIDC_SIGNING_KEY: values.OIDC_SIGNING_KEY.trim(),
     BETTER_AUTH_SECRET: values.BETTER_AUTH_SECRET,
   });
   console.log(JSON.stringify(result));

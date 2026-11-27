@@ -108,7 +108,7 @@ ID トークンの署名鍵（ES256）は Better Auth の jwt プラグインが
 手順（スペック 5 章の順）：
 
 1. Vercel に `BETTER_AUTH_SECRET` を足します（まだ再デプロイしない）。`OIDC_CLIENTS` と `OIDC_SIGNING_KEY` はそのまま残します。
-2. 表を足します。足すだけなので、今動いている古いコードは `ba_*` の表を使わず、影響を受けません。
+2. 表を足します。足すだけなので、今動いている古いコードは `ba_*` の表を使わず、影響を受けません。本番の `DATABASE_URL` と `DATABASE_URL_UNPOOLED` を同じシェルに設定して実行し、Prisma が表示するホストが、次の手順で `import:legacy` が表示するホストと同じであることを確かめます。
 
    ```sh
    pnpm run db:deploy

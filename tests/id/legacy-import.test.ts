@@ -62,3 +62,26 @@ test("an email that belongs to a different id throws and names both ids, not the
   assert.equal(s.users.length, 1);
   assert.equal(s.accounts.length, 0);
 });
+
+test("the signing key is encrypted with the secret exactly as given, trailing space included", async () => {
+  const { symmetricDecrypt } = await import("better-auth/crypto");
+  const jwk = { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d", kid: "kid1" };
+  let stored: { privateKey: string } | undefined;
+  const s = store([], []);
+  (s.prisma as unknown as { jwks: unknown }).jwks = {
+    async findUnique() { return null; },
+    async create({ data }: { data: { privateKey: string } }) { stored = data; },
+  };
+  const secret = "a-secret-with-a-trailing-space ";
+  const result = await importLegacy(s.prisma, {
+    OIDC_CLIENTS: "[]",
+    OIDC_SIGNING_KEY: JSON.stringify(jwk),
+    BETTER_AUTH_SECRET: secret,
+  });
+  assert.equal(result.key, "imported");
+  const encrypted = JSON.parse(stored!.privateKey);
+  assert.deepEqual(JSON.parse(await symmetricDecrypt({ key: secret, data: encrypted })), {
+    kty: "EC", crv: "P-256", x: "x", y: "y", d: "d",
+  });
+  await assert.rejects(symmetricDecrypt({ key: secret.trim(), data: encrypted }));
+});

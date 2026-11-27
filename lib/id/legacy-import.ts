@@ -48,7 +48,7 @@ type LegacyRow = {
  * whose id is already there is skipped, so running it again changes nothing. A row whose email belongs to a different
  * id (an account made on the new sign-up meanwhile) is a conflict: it throws, naming the ids, because skipping it
  * would leave the owner with a new `sub`. The old table is read with
- * SQL and may be gone (the drop migration removes it), which counts as no users.
+ * SQL and may be gone (once the legacy tables are dropped), which counts as no users.
  */
 async function importUsers(prisma: LegacyStore): Promise<number> {
   const [{ present }] = await prisma.$queryRawUnsafe<Array<{ present: boolean }>>(
