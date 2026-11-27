@@ -111,6 +111,8 @@ function toSearchParams(source: Record<string, unknown> | undefined): URLSearchP
  * Endpoints the provider does not offer (spec 4.2 使わない機能; no option turns them off), and the plugin's
  * continuation endpoints. Those resume an authorization from a signed oauth_query that is bound to no session, which
  * would issue a code past the checks below. Here a login always continues through `next` back to /oauth/authorize.
+ * Logging out has one path, /oauth/logout (app/oauth/logout/route.ts), so the plugin's end-session endpoints are not
+ * offered either, nor its public-client endpoints, which would tell anyone the registered clients' names.
  */
 const BLOCKED_PATHS = new Set([
   "/oauth2/introspect",
@@ -118,6 +120,10 @@ const BLOCKED_PATHS = new Set([
   "/oauth2/register",
   "/oauth2/consent",
   "/oauth2/continue",
+  "/oauth2/end-session",
+  "/oauth2/end-session/confirm",
+  "/oauth2/public-client",
+  "/oauth2/public-client-prelogin",
   "/token",
 ]);
 

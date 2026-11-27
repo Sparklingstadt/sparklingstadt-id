@@ -771,6 +771,30 @@ for (const path of ["/api/auth/oauth2/consent", "/api/auth/oauth2/continue"]) {
   });
 }
 
+// One way to log out (/oauth/logout), and no list of the registered clients' names. Each POST is sent in a media type
+// the endpoint accepts, so that the 404 is the block and not the media type check before it.
+for (const [method, path, body] of [
+  ["GET", "/api/auth/oauth2/end-session?client_id=e2e-client", null],
+  ["POST", "/api/auth/oauth2/end-session", "form"],
+  ["POST", "/api/auth/oauth2/end-session/confirm", "form"],
+  ["GET", "/api/auth/oauth2/public-client?client_id=e2e-client", null],
+  ["POST", "/api/auth/oauth2/public-client-prelogin", "json"],
+] as const) {
+  test(`the plugin's ${method} ${path.split("?")[0]} is not offered`, async ({ request }) => {
+    const fields = { client_id: "e2e-client" };
+    const response =
+      method === "GET"
+        ? await request.get(path, { maxRedirects: 0 })
+        : await request.post(path, {
+            headers: { Origin: ISSUER },
+            ...(body === "form" ? { form: fields } : { data: fields }),
+            maxRedirects: 0,
+          });
+    expect(response.status()).toBe(404);
+  });
+}
+
+// An oauth_query the plugin itself would reject (bad signature); two-factor.spec.ts sends a validly signed one.
 test("a sign-in carrying an oauth_query is refused and signs nobody in", async ({ page, request }) => {
   const email = await signedInUser(page);
   const response = await request.post("/api/auth/sign-in/email", {
