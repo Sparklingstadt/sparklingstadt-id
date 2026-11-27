@@ -2,6 +2,7 @@ import { getPathname } from "@/i18n/navigation";
 import { htmlLanguages, routing, type Locale } from "@/i18n/routing";
 import { getCurrentUser } from "@/lib/id/session";
 import { getTranslations } from "next-intl/server";
+import { KeyRound } from "lucide-react";
 
 const languageLabels: Record<Locale, string> = {
   ja: "日本語",
@@ -22,7 +23,7 @@ export async function SiteHeader({ locale, pathname }: SiteHeaderProps) {
   return (
     <header className="site-header">
       <a className="brand" href={getPathname({ href: "/account", locale })} aria-label={t("homeAriaLabel")}>
-        <span className="brand-mark" aria-hidden="true">S</span>
+        <span className="brand-mark" aria-hidden="true"><KeyRound /></span>
         <span>
           <strong>Sparklingstadt ID</strong>
         </span>
