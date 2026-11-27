@@ -1,9 +1,17 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { lastMailTo } from "./mail-log";
 import { confirmEmailLink } from "./verify";
 
 export const PASSWORD = "  twelve chars  ";
+
+/**
+ * A client IP of its own for a test, so the per-IP throttles never trip across the suite (Better Auth and clientIp
+ * ignore a value that is not an IP address and share one bucket instead).
+ */
+export function testIp() {
+  return `10.${randomBytes(3).join(".")}`;
+}
 
 export function newEmail() {
   return `oidc-${Date.now()}-${randomUUID().slice(0, 8)}@example.com`;

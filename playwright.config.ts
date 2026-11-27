@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
-import { generateSigningJwk } from "./lib/id/jwt.ts";
 
 // `docker compose up -d --wait` and `pnpm prisma migrate deploy` first (compose.yaml, port 55432).
 const databaseUrl =
@@ -27,13 +26,18 @@ const oidcClients =
     },
   ]);
 
+// The global setup registers the clients in the database (lib/id/client-import.ts), as the import script does in
+// production; the server reads them from there.
+process.env.DATABASE_URL = databaseUrl;
+process.env.OIDC_CLIENTS = oidcClients;
 // The mail helpers (e2e/helpers/mail-log.ts) read the same file the server writes.
 process.env.MAIL_LOG = mailLog;
-// Tests sign their own tokens (an expired access token cannot be waited for), so the workers get the server's key.
-process.env.OIDC_SIGNING_KEY ??= generateSigningJwk();
+// The server signs its mail links with this secret; tests that need an expired link sign one themselves.
+process.env.BETTER_AUTH_SECRET ??= "e2e-better-auth-secret-0123456789abcdef";
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   workers: 1,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
@@ -49,10 +53,9 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       DATABASE_URL: databaseUrl,
+      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
       ID_ISSUER: "http://localhost:3000",
       MAIL_LOG: mailLog,
-      OIDC_CLIENTS: oidcClients,
-      OIDC_SIGNING_KEY: process.env.OIDC_SIGNING_KEY,
     },
   },
 });

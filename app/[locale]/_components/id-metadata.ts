@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/routing";
 
-type IdPage = "signup" | "login" | "account" | "verify" | "forgot" | "reset" | "logout" | "signedOut";
+type IdPage = "signup" | "login" | "account" | "verify" | "forgot" | "reset" | "logout" | "signedOut" | "twoFactor";
 
 /** account pages are personal: never indexed. */
 export async function idMetadata(locale: Locale, page: IdPage): Promise<Metadata> {

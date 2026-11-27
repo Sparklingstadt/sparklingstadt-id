@@ -12,7 +12,8 @@
       "forgot": "重設密碼",
       "reset": "設定新密碼",
       "logout": "確認登出",
-      "signedOut": "已登出"
+      "signedOut": "已登出",
+      "twoFactor": "雙重驗證"
     },
     "Fields": {
       "email": "電子郵件地址",
@@ -29,7 +30,9 @@
       "throttled": "嘗試次數過多，請稍後再試。",
       "mailFailed": "郵件傳送失敗，請稍後再試。",
       "wrongPassword": "目前的密碼不正確。",
-      "sameEmail": "與目前的電子郵件地址相同。"
+      "sameEmail": "與目前的電子郵件地址相同。",
+      "wrongCode": "驗證碼不正確。",
+      "passwordIncorrect": "密碼不正確。"
     },
     "Signup": {
       "heading": "建立 Sparklingstadt ID",
@@ -49,8 +52,12 @@
       "noAccount": "還沒有 Sparklingstadt ID？",
       "signupLink": "註冊",
       "forgotLink": "忘記密碼？",
-      "passwordReset": "密碼已重設。請使用新密碼登入。",
-      "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。"
+      "passwordReset": "密碼已重設。請使用新密碼登入。已新增的通行金鑰已刪除，如需使用請重新新增。",
+      "confirmFirst": "要確認電子郵件地址，請先登入該 Sparklingstadt ID。",
+      "passkey": "使用通行金鑰（指紋）登入",
+      "passkeyPending": "確認中…",
+      "passkeyFailed": "無法使用通行金鑰登入。請使用電子郵件和密碼登入，或再試一次。",
+      "freshRequired": "新增通行金鑰需要重新登入。請再登入一次。"
     },
     "Account": {
       "heading": "我的帳戶",
@@ -76,7 +83,31 @@
       "newPassword": "新密碼",
       "changePassword": "變更密碼",
       "passwordChanged": "密碼已變更。其他裝置已登出。",
-      "pending": "傳送中…"
+      "pending": "傳送中…",
+      "passkeysHeading": "通行金鑰",
+      "passkeysLead": "可以用指紋、臉部或螢幕鎖登入。通行金鑰儲存在此裝置或密碼管理器中，可新增任意多個。",
+      "passkeyName": "通行金鑰的名稱",
+      "passkeyNamePlaceholder": "例如：iPhone 的指紋",
+      "passkeyAdd": "新增通行金鑰",
+      "passkeysEmpty": "還沒有通行金鑰。",
+      "passkeyDelete": "刪除",
+      "passkeyFailed": "通行金鑰操作失敗，請重試。",
+      "passkeyUnnamed": "未命名的通行金鑰",
+      "twoFactorHeading": "雙重驗證",
+      "twoFactorLead": "開啟後，使用密碼登入時還需要輸入驗證器應用程式的驗證碼。使用通行金鑰登入時不需要驗證碼。",
+      "twoFactorOn": "雙重驗證已開啟。",
+      "twoFactorOff": "雙重驗證已關閉。",
+      "twoFactorEnable": "開啟雙重驗證",
+      "twoFactorScan": "請用驗證器應用程式（Google Authenticator、Microsoft Authenticator 等）掃描此 QR 碼。",
+      "twoFactorQrAlt": "驗證器應用程式的 QR 碼",
+      "twoFactorManual": "無法掃描時，請輸入此金鑰：",
+      "twoFactorCode": "驗證器應用程式的驗證碼",
+      "twoFactorConfirm": "確認並開啟",
+      "twoFactorBackupHeading": "備用碼",
+      "twoFactorBackupLead": "驗證器應用程式無法使用時，可代替驗證碼使用，每組只能用一次。離開此頁面後將不再顯示，請儲存在安全的地方。",
+      "twoFactorRegenerate": "重新產生備用碼",
+      "twoFactorDisable": "關閉雙重驗證",
+      "twoFactorFailed": "雙重驗證操作失敗。請再試一次。"
     },
     "Verify": {
       "verifiedHeading": "電子郵件地址已確認",
@@ -127,6 +158,19 @@
       "heading": "已登出",
       "body": "你已登出 Sparklingstadt ID。",
       "loginLink": "重新登入"
+    },
+    "TwoFactor": {
+      "heading": "雙重驗證",
+      "lead": "請輸入驗證器應用程式中顯示的6位數驗證碼。",
+      "backupLead": "請輸入一組已儲存的備用碼。使用過的備用碼無法再次使用。",
+      "code": "驗證器應用程式的驗證碼",
+      "backupCode": "備用碼",
+      "submit": "確認",
+      "pending": "確認中…",
+      "useBackup": "使用備用碼",
+      "useTotp": "使用驗證器應用程式的驗證碼",
+      "expired": "登入流程已過期或不存在。請重新登入。",
+      "backToLogin": "返回登入"
     }
   }
 }

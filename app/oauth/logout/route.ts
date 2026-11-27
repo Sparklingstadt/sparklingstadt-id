@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 import { hasLocale } from "next-intl";
 import { getPathname } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { getOidcConfig, type OidcConfig } from "@/lib/id/config";
 import { LOGOUT_PARAMS, logoutHintSubject, resolvePostLogoutRedirect } from "@/lib/id/logout";
 import { destroySession, getCurrentUser } from "@/lib/id/session";
 
@@ -24,20 +23,14 @@ export async function GET(request: NextRequest) {
   const locale = hasLocale(routing.locales, cookieLocale) ? cookieLocale : routing.defaultLocale;
   const params = request.nextUrl.searchParams;
 
-  let config: OidcConfig | null = null;
-  try {
-    config = getOidcConfig();
-  } catch {
-    // Not configured: no client to go back to and no hint to trust.
-  }
-  const target = (config && resolvePostLogoutRedirect(config, params)) ?? getPathname({ href: "/signed-out", locale });
+  const target = (await resolvePostLogoutRedirect(params)) ?? getPathname({ href: "/signed-out", locale });
 
   // Nobody is signed in: there is nothing to end. The cookie is left alone as well: a request made from another
   // site arrives without it, and clearing it in the answer would sign the user out after all.
   const current = await getCurrentUser();
   if (!current) return redirectTo(target);
 
-  if (!config || logoutHintSubject(config, params) !== current.user.id) {
+  if ((await logoutHintSubject(params)) !== current.user.id) {
     const kept = new URLSearchParams(
       [...params].filter(([name]) => (LOGOUT_PARAMS as readonly string[]).includes(name)),
     );

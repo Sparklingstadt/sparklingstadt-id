@@ -28,7 +28,7 @@ export async function SiteHeader({ locale, pathname }: SiteHeaderProps) {
         </span>
       </a>
       <div className="header-tools">
-        {current ? <span className="header-user">{current.user.displayName}</span> : null}
+        {current ? <span className="header-user">{current.user.name}</span> : null}
         <div className="language-switcher" aria-label={t("language")}>
           {routing.locales.map((language) => (
             <a

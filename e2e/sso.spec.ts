@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { newEmail, PASSWORD, signUp } from "./helpers/account";
+import { newEmail, PASSWORD, signUp, testIp } from "./helpers/account";
 import { lastMailTo } from "./helpers/mail-log";
 import { confirmEmailLink } from "./helpers/verify";
 
@@ -8,7 +8,7 @@ const ISSUER = "http://localhost:3000";
 
 test.use({
   extraHTTPHeaders: async ({}, provide) => {
-    await provide({ "x-forwarded-for": `e2e-${randomUUID()}` });
+    await provide({ "x-forwarded-for": testIp() });
   },
 });
 
@@ -62,7 +62,7 @@ test("one login serves two clients and yields the same sub", async ({ page, requ
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
   await page.waitForURL((url) => url.href.startsWith(`${CLIENT_A.redirectUri}?`));
   const codeA = new URL(page.url()).searchParams.get("code") as string;
-  expect(codeA).toMatch(/^[\w-]{43}$/);
+  expect(codeA).toMatch(/^[A-Za-z0-9]{32}$/);
 
   // Client B in the same browser: back with a code, never showing the login page.
   const visited: string[] = [];
@@ -74,7 +74,7 @@ test("one login serves two clients and yields the same sub", async ({ page, requ
   const callbackB = new URL(page.url());
   expect(callbackB.searchParams.get("state")).toBe(b.params.get("state"));
   const codeB = callbackB.searchParams.get("code") as string;
-  expect(codeB).toMatch(/^[\w-]{43}$/);
+  expect(codeB).toMatch(/^[A-Za-z0-9]{32}$/);
 
   const idTokenA = await exchange(request, CLIENT_A, codeA, a.verifier);
   const idTokenB = await exchange(request, CLIENT_B, codeB, b.verifier);

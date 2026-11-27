@@ -11,7 +11,9 @@ import { IdShell } from "../_components/id-shell";
 import { idMetadata } from "../_components/id-metadata";
 import { PasswordForm } from "../_components/password-form";
 import { logOutAction } from "../actions";
+import { PasskeySection } from "./passkey-section";
 import { ResendForm } from "./resend-form";
+import { TwoFactorSection } from "./two-factor-section";
 
 export async function generateMetadata({ params }: PageProps<"/[locale]/account">): Promise<Metadata> {
   const { locale } = await params;
@@ -32,10 +34,10 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
     <IdShell locale={locale} pathname="/account">
       <h1>{t("Account.heading")}</h1>
       <dl className="id-profile">
-        <div><dt>{t("Account.displayName")}</dt><dd>{user.displayName}</dd></div>
+        <div><dt>{t("Account.displayName")}</dt><dd>{user.name}</dd></div>
         <div><dt>{t("Account.email")}</dt><dd>{user.email}</dd></div>
       </dl>
-      {user.emailVerifiedAt ? null : (
+      {user.emailVerified ? null : (
         <div className="id-section">
           <p className="id-alert">
             {verify === "required" ? `${t("Account.verifyRequired")} ` : null}
@@ -74,6 +76,54 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           hint: t("Fields.passwordHint"),
           submit: t("Account.changePassword"),
           pending: t("Account.pending"),
+        }}
+      />
+      <PasskeySection
+        locale={locale}
+        freshLoginHref={`${getPathname({ href: "/login", locale })}?${new URLSearchParams({
+          reauth: "1",
+          fresh: "1",
+          next: getPathname({ href: "/account", locale }),
+        })}`}
+        labels={{
+          heading: t("Account.passkeysHeading"),
+          lead: t("Account.passkeysLead"),
+          name: t("Account.passkeyName"),
+          namePlaceholder: t("Account.passkeyNamePlaceholder"),
+          password: t("Account.currentPassword"),
+          wrongPassword: t("Errors.passwordIncorrect"),
+          throttled: t("Errors.throttled"),
+          add: t("Account.passkeyAdd"),
+          pending: t("Account.pending"),
+          empty: t("Account.passkeysEmpty"),
+          delete: t("Account.passkeyDelete"),
+          failed: t("Account.passkeyFailed"),
+          unnamed: t("Account.passkeyUnnamed"),
+        }}
+      />
+      <TwoFactorSection
+        enabled={user.twoFactorEnabled}
+        labels={{
+          heading: t("Account.twoFactorHeading"),
+          lead: t("Account.twoFactorLead"),
+          on: t("Account.twoFactorOn"),
+          off: t("Account.twoFactorOff"),
+          password: t("Account.currentPassword"),
+          enable: t("Account.twoFactorEnable"),
+          scan: t("Account.twoFactorScan"),
+          qrAlt: t("Account.twoFactorQrAlt"),
+          manual: t("Account.twoFactorManual"),
+          code: t("Account.twoFactorCode"),
+          confirm: t("Account.twoFactorConfirm"),
+          backupHeading: t("Account.twoFactorBackupHeading"),
+          backupLead: t("Account.twoFactorBackupLead"),
+          regenerate: t("Account.twoFactorRegenerate"),
+          disable: t("Account.twoFactorDisable"),
+          pending: t("Account.pending"),
+          failed: t("Account.twoFactorFailed"),
+          wrongPassword: t("Errors.passwordIncorrect"),
+          wrongCode: t("Errors.wrongCode"),
+          throttled: t("Errors.throttled"),
         }}
       />
       <form className="id-section" action={logOutAction}>

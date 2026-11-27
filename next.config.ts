@@ -1,10 +1,15 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { OIDC_URL_PATHS } from "./lib/id/oidc-urls";
 
 const nextConfig: NextConfig = {
   async redirects() {
     // The root has no page of its own: the account page is the front door.
     return [{ source: "/", destination: "/account", permanent: false }];
+  },
+  async rewrites() {
+    // The OIDC URLs the clients know, served by Better Auth (lib/id/oidc-urls.ts).
+    return Object.entries(OIDC_URL_PATHS).map(([source, destination]) => ({ source, destination }));
   },
   async headers() {
     return [
