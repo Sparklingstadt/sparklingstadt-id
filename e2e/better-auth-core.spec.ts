@@ -1,11 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { Client } from "pg";
+import { testIp } from "./helpers/account";
 import { deleteUser } from "./helpers/db";
 
 const PASSWORD = "  twelve chars  ";
 // Better Auth checks the Origin of a request that carries cookies or follows a sign-in; a browser always sends it.
 const headers = { origin: "http://localhost:3000" };
+
+// Its own client IP, so the per-IP throttles never trip across the suite.
+test.use({
+  extraHTTPHeaders: async ({}, provide) => {
+    await provide({ "x-forwarded-for": testIp() });
+  },
+});
 
 async function accountPassword(email: string): Promise<string> {
   const client = new Client({
@@ -24,22 +32,25 @@ async function accountPassword(email: string): Promise<string> {
   }
 }
 
-test("sign-up and sign-in through /api/auth work with the legacy password hash", async ({ request }) => {
+test("an account made on the sign-up page signs in through /api/auth with the legacy password hash", async ({ page, request }) => {
   const email = `ba-core-${Date.now()}-${randomUUID().slice(0, 8)}@example.com`;
   try {
-    await signUpAndIn(request, email);
+    await signUpAndIn(page, request, email);
   } finally {
     // The test makes its own account and removes it (its sessions and password cascade).
     await deleteUser(email);
   }
 });
 
-async function signUpAndIn(request: APIRequestContext, email: string) {
-  const signUp = await request.post("/api/auth/sign-up/email", {
-    data: { email, password: PASSWORD, name: "べったーおーす" },
-    headers,
-  });
-  expect(signUp.status()).toBe(200);
+async function signUpAndIn(page: Page, request: APIRequestContext, email: string) {
+  // Signing up goes through the page's server action (/api/auth/sign-up/email answers 404 over HTTP:
+  // lib/id/server-only-endpoints.ts, e2e/server-only.spec.ts).
+  await page.goto("/signup");
+  await page.getByLabel("メールアドレス", { exact: true }).fill(email);
+  await page.getByLabel("表示名").fill("べったーおーす");
+  await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "登録する" }).click();
+  await expect(page.getByText("確認メールを送りました")).toBeVisible();
 
   expect(await accountPassword(email)).toMatch(/^scrypt\$/);
 

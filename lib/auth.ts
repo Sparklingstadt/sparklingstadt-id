@@ -19,6 +19,7 @@ import { hashToken } from "@/lib/id/tokens";
 import { twoFactorPolicy } from "@/lib/id/two-factor-policy";
 import { getPrisma } from "@/lib/prisma";
 import { resetThrottle } from "@/lib/id/throttle";
+import { serverOnlyEndpoints } from "@/lib/id/server-only-endpoints";
 
 /** A client secret is checked against its SHA-256 hex, the form OIDC_CLIENTS has always stored (lib/id/client-import.ts). */
 function verifyClientSecret(secret: string, storedHash: string): boolean {
@@ -44,7 +45,9 @@ export const auth = betterAuth({
   session: { expiresIn: 30 * 24 * 60 * 60 },
   user: {
     modelName: "user",
-    // The new address is confirmed by the mail to it (mailHooks.sendVerificationEmail).
+    // The new address is confirmed by the mail to it (mailHooks.sendVerificationEmail). The move itself is done by
+    // confirmEmail in lib/id/accounts.ts, never by Better Auth's /verify-email or /change-email over HTTP
+    // (serverOnlyEndpoints answers 404 there).
     changeEmail: { enabled: true },
   },
   emailVerification: {
@@ -63,7 +66,9 @@ export const auth = betterAuth({
     enabled: true,
     // An unconfirmed address can still sign in; the gate comes with the sign-in flow.
     requireEmailVerification: false,
-    // The password rules live in checkPassword, not here.
+    // The password rules live in checkPassword (lib/id/validation.ts), which the server actions apply before calling
+    // Better Auth. Every endpoint that takes a new password (/sign-up/email, /change-password, /reset-password) is
+    // server-only (serverOnlyEndpoints), so no request reaches it without those rules.
     minPasswordLength: 1,
     maxPasswordLength: 1024,
     // The same scrypt format as the legacy accounts, so their hashes keep working.
@@ -101,6 +106,8 @@ export const auth = betterAuth({
     customRules: { "/sign-in/email": { window: 60, max: 20 }, "/two-factor/*": { window: 60, max: 20 } },
   },
   plugins: [
+    // First, so that an HTTP request for an endpoint only the server actions use is answered 404 before anything else.
+    serverOnlyEndpoints(),
     accountThrottle(),
     // Before oauthProvider, so that its hooks run first (lib/id/oidc-compat.ts).
     oidcCompat(),

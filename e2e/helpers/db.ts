@@ -100,3 +100,39 @@ export function setThrottle(key: string, count: number): Promise<number> {
     [key, count],
   );
 }
+
+/** The id of the account with this address, or undefined. */
+export async function userIdOf(email: string): Promise<string | undefined> {
+  return (await query("select id from ba_users where email = $1", [email])).rows[0]?.id;
+}
+
+/** The address stored for an account. */
+export async function emailOf(userId: string): Promise<string | undefined> {
+  return (await query("select email from ba_users where id = $1", [userId])).rows[0]?.email;
+}
+
+/** How many session rows an account has. */
+export async function sessionCountOf(userId: string): Promise<number> {
+  return (await query("select count(*)::int as n from ba_sessions where user_id = $1", [userId])).rows[0].n;
+}
+
+/** How many authorization codes the oauth-provider plugin has stored for an account. */
+export async function authCodeCountOf(userId: string): Promise<number> {
+  return (
+    await query(
+      `select count(*)::int as n from ba_verifications
+       where value like '%"type":"authorization_code"%' and value like $1`,
+      [`%"userId":"${userId}"%`],
+    )
+  ).rows[0].n;
+}
+
+/** How many passkeys an account has. */
+export async function passkeyCountOf(email: string): Promise<number> {
+  return (
+    await query(
+      "select count(*)::int as n from ba_passkeys where user_id = (select id from ba_users where email = $1)",
+      [email],
+    )
+  ).rows[0].n;
+}
