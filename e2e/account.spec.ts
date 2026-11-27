@@ -164,6 +164,8 @@ test("a login hashes the password again when it was stored with the earlier para
 
   // The new hash is of the same password.
   await page.getByRole("button", { name: "ログアウト" }).click();
+  // Opening /login before the logout has finished would redirect away from it.
+  await expect(page).toHaveURL(/\/login$/);
   await logIn(page, email);
   await expect(page).toHaveURL(/\/account$/);
 });
